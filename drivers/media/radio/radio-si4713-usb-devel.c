@@ -20,7 +20,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/usb.h>
-/*
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/input.h>
@@ -29,7 +28,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-event.h>
-#include <linux/mutex.h> */
+#include <linux/mutex.h>
 
 /* driver and module definitions */
 MODULE_AUTHOR("Dinesh Ram <dinesh.ram@cern.ch>");
@@ -40,6 +39,27 @@ MODULE_LICENSE("GPL");
 #define USB_SI4713_VENDOR 0x10c4
 #define USB_SI4713_PRODUCT 0x8244
 
+/* Probably USB_TIMEOUT should be modified in module parameter */
+#define BUFFER_LENGTH 8
+#define USB_TIMEOUT 500
+
+struct si4713_device {
+	struct usb_device *usbdev;
+	struct usb_interface *intf;
+	struct video_device vdev;
+	struct v4l2_device v4l2_dev;
+	struct v4l2_ctrl_handler hdl;
+	struct mutex lock;
+
+	u8 *buffer;
+	unsigned curfreq;
+	u8 tx;
+	u8 pa;
+	bool stereo;
+	bool muted;
+	bool preemph_75_us;
+};
+
 /* USB Device ID List */
 static struct usb_device_id usb_si4713_device_table[] = {
 	{USB_DEVICE_AND_INTERFACE_INFO(USB_SI4713_VENDOR, USB_SI4713_PRODUCT,
@@ -48,17 +68,6 @@ static struct usb_device_id usb_si4713_device_table[] = {
 };
 
 MODULE_DEVICE_TABLE(usb, usb_si4713_device_table);
-
-/* USB subsystem interface */
-static struct usb_driver usb_si4713_driver = {
-	.name			= "radio-si4713-usb",
-	.probe			= usb_si4713_probe,
-	.disconnect		= usb_si4713_disconnect,
-	.id_table		= usb_si4713_device_table,
-	/*.suspend		= usb_si4713_suspend,
-	.resume			= usb_si4713_resume,
-	.reset_resume		= usb_si4713_resume,*/
-};
 
 /* check if the device is present and register with v4l and usb if it is */
 static int usb_si4713_probe(struct usb_interface *intf,
@@ -71,7 +80,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	
 	/*just for testing*/
 	struct usb_host_interface *iface_desc;
-	iface_desc = interface->cur_altsetting;
+	iface_desc = intf->cur_altsetting;
 	printk(KERN_INFO "Si4713 development board i/f %d now probed: (%04X:%04X)\n",
             iface_desc->desc.bInterfaceNumber, id->idVendor, id->idProduct);
 	printk(KERN_INFO "ID->bInterfaceClass: %02X\n",
@@ -92,13 +101,26 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	
 	radio->usbdev = interface_to_usbdev(intf);
 	return 0;
+err:
+	return retval;
 }
 
 static void usb_si4713_disconnect(struct usb_interface *intf)
 {
 	printk(KERN_INFO "Si4713 development board i/f %d now disconnected\n",
-            interface->cur_altsetting->desc.bInterfaceNumber);
+            intf->cur_altsetting->desc.bInterfaceNumber);
 }
+
+/* USB subsystem interface */
+static struct usb_driver usb_si4713_driver = {
+	.name			= "radio-si4713-usb",
+	.probe			= usb_si4713_probe,
+	.disconnect		= usb_si4713_disconnect,
+	.id_table		= usb_si4713_device_table,
+	/*.suspend		= usb_si4713_suspend,
+	.resume			= usb_si4713_resume,
+	.reset_resume		= usb_si4713_resume,*/
+};
 
 static int __init si4713_init(void)
 {
@@ -116,13 +138,12 @@ static void __exit si4713_exit(void)
 	usb_deregister(&usb_si4713_driver);
 }
 
-
 module_init(si4713_init);
 module_exit(si4713_exit);
 
-MODULE_LICENSE("GPL")
+/*MODULE_LICENSE("GPL")
 MODULE_AUTHOR("Dinesh Ram")
-MODULE_DESCRIPTION("USB Device Driver for Si4713 development board")
+MODULE_DESCRIPTION("USB Device Driver for Si4713 development board")*/
 
 
 
