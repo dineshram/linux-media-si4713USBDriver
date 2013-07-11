@@ -40,8 +40,17 @@ MODULE_LICENSE("GPL");
 #define USB_SI4713_PRODUCT 0x8244
 
 /* Probably USB_TIMEOUT should be modified in module parameter */
-#define BUFFER_LENGTH 8
+#define BUFFER_LENGTH 64
 #define USB_TIMEOUT 500
+
+/* USB Device ID List */
+static struct usb_device_id usb_si4713_device_table[] = {
+	{USB_DEVICE_AND_INTERFACE_INFO(USB_SI4713_VENDOR, USB_SI4713_PRODUCT,
+							USB_CLASS_HID, 0, 0) },
+	{ }						/* Terminating entry */
+};
+
+MODULE_DEVICE_TABLE(usb, usb_si4713_device_table);
 
 struct si4713_device {
 	struct usb_device *usbdev;
@@ -60,14 +69,10 @@ struct si4713_device {
 	bool preemph_75_us;
 };
 
-/* USB Device ID List */
-static struct usb_device_id usb_si4713_device_table[] = {
-	{USB_DEVICE_AND_INTERFACE_INFO(USB_SI4713_VENDOR, USB_SI4713_PRODUCT,
-							USB_CLASS_HID, 0, 0) },
-	{ }						/* Terminating entry */
-};
-
-MODULE_DEVICE_TABLE(usb, usb_si4713_device_table);
+static inline struct si4713_device *to_si4713_dev(struct v4l2_device *v4l2_dev)
+{
+	return container_of(v4l2_dev, struct si4713_device, v4l2_dev);
+}
 
 /* check if the device is present and register with v4l and usb if it is */
 static int usb_si4713_probe(struct usb_interface *intf,
@@ -76,6 +81,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	
 	struct usb_device *dev = interface_to_usbdev(intf);
 	struct si4713_device *radio;
+	struct v4l2_ctrl_handler *hdl;
 	int retval = 0;
 	
 	/*just for testing*/
@@ -99,17 +105,91 @@ static int usb_si4713_probe(struct usb_interface *intf,
 		goto err;
 	}
 	
+	hdl = &radio->hdl;
+	v4l2_ctrl_handler_init(hdl, 4);
+	/* TODO : some code to be written here */
+	
+	if (hdl->error) {
+		retval = hdl->error;
+
+		v4l2_ctrl_handler_free(hdl);
+		goto err_v4l2;
+	}
+	retval = v4l2_device_register(&intf->dev, &radio->v4l2_dev);
+	if (retval < 0) {
+		dev_err(&intf->dev, "couldn't register v4l2_device\n");
+		goto err_v4l2;
+	}
+
+	mutex_init(&radio->lock);
+	
+	radio->v4l2_dev.ctrl_handler = hdl;
+	radio->v4l2_dev.release = usb_si4713_video_device_release;
+	strlcpy(radio->vdev.name, radio->v4l2_dev.name,
+		sizeof(radio->vdev.name));
+	radio->vdev.v4l2_dev = &radio->v4l2_dev;
+	radio->vdev.fops = &usb_si4713_fops;
+	radio->vdev.ioctl_ops = &usb_si4713_ioctl_ops;
+	radio->vdev.lock = &radio->lock;
+	radio->vdev.release = video_device_release_empty;
+	radio->vdev.vfl_dir = VFL_DIR_TX;
+
 	radio->usbdev = interface_to_usbdev(intf);
+	radio->intf = intf;
+	usb_set_intfdata(intf, &radio->v4l2_dev);
+
+	video_set_drvdata(&radio->vdev, radio);
+	set_bit(V4L2_FL_USE_FH_PRIO, &radio->vdev.flags);
+
+	retval = video_register_device(&radio->vdev, VFL_TYPE_RADIO, -1);
+	if (retval < 0) {
+		dev_err(&intf->dev, "could not register video device\n");
+		goto err_vdev;
+	}
+	v4l2_ctrl_handler_setup(hdl);
+	dev_info(&intf->dev, "V4L2 device registered as %s\n",
+			video_device_node_name(&radio->vdev));
+	
 	return 0;
+	
+err_vdev:
+	v4l2_device_unregister(&radio->v4l2_dev);
+err_v4l2:
+	kfree(radio->buffer);
+	kfree(radio);
 err:
 	return retval;
 }
+
+/* Handle unplugging the device.
+ * We call video_unregister_device in any case.
+ * The last function called in this procedure is
+ * usb_si4713_device_release.
+ */
 
 static void usb_si4713_disconnect(struct usb_interface *intf)
 {
 	printk(KERN_INFO "Si4713 development board i/f %d now disconnected\n",
             intf->cur_altsetting->desc.bInterfaceNumber);
+	
+	struct si4713_device *radio = to_si4713_dev(usb_get_intfdata(intf));
+
+	mutex_lock(&radio->lock);
+	usb_set_intfdata(intf, NULL);
+	video_unregister_device(&radio->vdev);
+	v4l2_device_disconnect(&radio->v4l2_dev);
+	mutex_unlock(&radio->lock);
+	v4l2_device_put(&radio->v4l2_dev);
 }
+
+/* File system interface */
+static const struct v4l2_file_operations usb_si4713_fops = {
+	.owner		= THIS_MODULE,
+	.open           = v4l2_fh_open,
+	.release        = v4l2_fh_release,
+	.poll		= v4l2_ctrl_poll,
+	.unlocked_ioctl	= video_ioctl2,
+};
 
 /* USB subsystem interface */
 static struct usb_driver usb_si4713_driver = {
