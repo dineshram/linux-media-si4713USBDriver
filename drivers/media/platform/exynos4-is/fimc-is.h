@@ -33,8 +33,8 @@
 
 #define FIMC_IS_DRV_NAME		"exynos4-fimc-is"
 
-#define FIMC_IS_FW_FILENAME		"fimc_is_fw.bin"
-#define FIMC_IS_SETFILE_6A3		"setfile.bin"
+#define FIMC_IS_FW_FILENAME		"exynos4_fimc_is_fw.bin"
+#define FIMC_IS_SETFILE_6A3		"exynos4_s5k6a3_setfile.bin"
 
 #define FIMC_IS_FW_LOAD_TIMEOUT		1000 /* ms */
 #define FIMC_IS_POWER_ON_TIMEOUT	1000 /* us */
@@ -73,7 +73,6 @@ enum {
 	ISS_CLK_LITE0,
 	ISS_CLK_LITE1,
 	ISS_CLK_MPLL,
-	ISS_CLK_SYSREG,
 	ISS_CLK_ISP,
 	ISS_CLK_DRC,
 	ISS_CLK_FD,
@@ -264,7 +263,6 @@ struct fimc_is {
 	spinlock_t			slock;
 
 	struct clk			*clocks[ISS_CLKS_MAX];
-	bool				clk_init;
 	void __iomem			*regs;
 	void __iomem			*pmu_regs;
 	int				irq;
