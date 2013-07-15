@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Dinesh Ram <dinesh.ram@cern.ch>
+ * Copyright (c) 2013 Dinesh Ram <dinesh.ram@cern.ch> and Hans Verkuil
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,9 +31,9 @@
 #include <linux/mutex.h>
 
 /* driver and module definitions */
-MODULE_AUTHOR("Dinesh Ram <dinesh.ram@cern.ch>");
+MODULE_AUTHOR("Dinesh Ram <dinesh.ram@cern.ch> and Hans Verkuil<>");
 MODULE_DESCRIPTION("Si4713 FM Transmitter usb driver");
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("GPL v2");
 
 /* The Device announces itself as Cygnal Integrated Products, Inc. */
 #define USB_SI4713_VENDOR 0x10c4
@@ -57,7 +57,7 @@ struct si4713_device {
 	struct usb_interface *intf;
 	struct video_device vdev;
 	struct v4l2_device v4l2_dev;
-	struct v4l2_ctrl_handler hdl;
+	//struct v4l2_ctrl_handler hdl;
 	struct mutex lock;
 
 	u8 *buffer;
@@ -74,6 +74,90 @@ static inline struct si4713_device *to_si4713_dev(struct v4l2_device *v4l2_dev)
 	return container_of(v4l2_dev, struct si4713_device, v4l2_dev);
 }
 
+
+static int vidioc_querycap(struct file *file, void *priv,
+					struct v4l2_capability *v)
+{
+	struct si4713_device *radio = video_drvdata(file);
+
+	strlcpy(v->driver, "radio-si4713-usb", sizeof(v->driver));
+	strlcpy(v->card, "Si4713 FM Transmitter", sizeof(v->card));
+	usb_make_path(radio->usbdev, v->bus_info, sizeof(v->bus_info));
+	v->device_caps = V4L2_CAP_TUNER | V4L2_CAP_RADIO | V4L2_CAP_MODULATOR | V4L2_CAP_RDS_CAPTURE;
+	v->capabilities = v->device_caps | V4L2_CAP_DEVICE_CAPS;
+	return 0;
+}
+
+static int vidioc_g_modulator(struct file *file, void *priv,
+				struct v4l2_modulator *v)
+{
+ /*TODO : To be implemented */
+ return 0;
+}
+
+static int vidioc_s_modulator(struct file *file, void *priv,
+				const struct v4l2_modulator *v)
+{
+ /*TODO : To be implemented */
+ return 0;
+}
+
+static int vidioc_s_frequency(struct file *file, void *priv,
+				const struct v4l2_frequency *f)
+{
+ /*TODO : To be implemented */
+ return 0;
+}
+
+static int vidioc_g_frequency(struct file *file, void *priv,
+				struct v4l2_frequency *f)
+{
+ /*TODO : To be implemented */
+ return 0;
+}
+
+static int vidioc_log_status(struct file *file, void *priv)
+{
+  /*TODO : To be implemented 
+    * Intended to be a debugging aid for video application writers.
+    * Should print information describing the current status of the driver and its hardware.
+    * Should be sufficiently verbose to help a confused application developer figure out why
+    the video display is coming up blank
+    * Should be moderated with a call to printk_ratelimit() to keep it from being used to slow 
+    the system and fill the logfiles with junk */
+}
+
+
+/* File system interface */
+static const struct v4l2_file_operations usb_si4713_fops = {
+	.owner		= THIS_MODULE,
+	.open           = v4l2_fh_open,
+	.release        = v4l2_fh_release,
+	//.poll		= v4l2_ctrl_poll,
+	.unlocked_ioctl	= video_ioctl2,
+};
+
+static const struct v4l2_ioctl_ops usb_si4713_ioctl_ops = {
+	.vidioc_querycap    = vidioc_querycap,
+	.vidioc_g_modulator = vidioc_g_modulator,
+	.vidioc_s_modulator = vidioc_s_modulator,
+	.vidioc_g_frequency = vidioc_g_frequency,
+	.vidioc_s_frequency = vidioc_s_frequency,
+	//.vidioc_log_status = v4l2_ctrl_log_status,
+	//.vidioc_subscribe_event = v4l2_ctrl_subscribe_event,
+	//.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
+};
+
+static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
+{
+	struct si4713_device *radio = to_si4713_dev(v4l2_dev);
+
+	/* free rest memory */
+	//v4l2_ctrl_handler_free(&radio->hdl);
+	kfree(radio->buffer);
+	kfree(radio);
+}
+
 /* check if the device is present and register with v4l and usb if it is */
 static int usb_si4713_probe(struct usb_interface *intf,
 				const struct usb_device_id *id)
@@ -81,7 +165,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	
 	struct usb_device *dev = interface_to_usbdev(intf);
 	struct si4713_device *radio;
-	struct v4l2_ctrl_handler *hdl;
+	//struct v4l2_ctrl_handler *hdl;
 	int retval = 0;
 	
 	/*just for testing*/
@@ -94,7 +178,6 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	
 	/* Initialize our local device structure */
 	radio = kzalloc(sizeof(struct si4713_device), GFP_KERNEL);
-	//memset (radio, 0x00, sizeof (*radio)); /* is it necessary? */
 	if (radio)
 		radio->buffer = kmalloc(BUFFER_LENGTH, GFP_KERNEL);
 
@@ -105,16 +188,16 @@ static int usb_si4713_probe(struct usb_interface *intf,
 		goto err;
 	}
 	
-	hdl = &radio->hdl;
-	v4l2_ctrl_handler_init(hdl, 4);
+	//hdl = &radio->hdl;
+	//v4l2_ctrl_handler_init(hdl, 4);
 	/* TODO : some code to be written here */
 	
-	if (hdl->error) {
-		retval = hdl->error;
-
-		v4l2_ctrl_handler_free(hdl);
-		goto err_v4l2;
-	}
+	//if (hdl->error) {
+	//	retval = hdl->error;
+	//
+	//	v4l2_ctrl_handler_free(hdl);
+	//	goto err_v4l2;
+	//}
 	retval = v4l2_device_register(&intf->dev, &radio->v4l2_dev);
 	if (retval < 0) {
 		dev_err(&intf->dev, "couldn't register v4l2_device\n");
@@ -123,7 +206,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 
 	mutex_init(&radio->lock);
 	
-	radio->v4l2_dev.ctrl_handler = hdl;
+	//radio->v4l2_dev.ctrl_handler = hdl;
 	radio->v4l2_dev.release = usb_si4713_video_device_release;
 	strlcpy(radio->vdev.name, radio->v4l2_dev.name,
 		sizeof(radio->vdev.name));
@@ -153,11 +236,14 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	return 0;
 	
 err_vdev:
+	printk(KERN_INFO "err_vdev");
 	v4l2_device_unregister(&radio->v4l2_dev);
 err_v4l2:
+	printk(KERN_INFO "err_vdev");
 	kfree(radio->buffer);
 	kfree(radio);
 err:
+	printk(KERN_INFO "err");
 	return retval;
 }
 
@@ -181,15 +267,6 @@ static void usb_si4713_disconnect(struct usb_interface *intf)
 	mutex_unlock(&radio->lock);
 	v4l2_device_put(&radio->v4l2_dev);
 }
-
-/* File system interface */
-static const struct v4l2_file_operations usb_si4713_fops = {
-	.owner		= THIS_MODULE,
-	.open           = v4l2_fh_open,
-	.release        = v4l2_fh_release,
-	.poll		= v4l2_ctrl_poll,
-	.unlocked_ioctl	= video_ioctl2,
-};
 
 /* USB subsystem interface */
 static struct usb_driver usb_si4713_driver = {
@@ -220,10 +297,3 @@ static void __exit si4713_exit(void)
 
 module_init(si4713_init);
 module_exit(si4713_exit);
-
-/*MODULE_LICENSE("GPL")
-MODULE_AUTHOR("Dinesh Ram")
-MODULE_DESCRIPTION("USB Device Driver for Si4713 development board")*/
-
-
-
