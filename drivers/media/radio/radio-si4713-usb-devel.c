@@ -26,7 +26,7 @@
 #include <linux/videodev2.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
-#include <media/v4l2-ctrls.h>
+//#include <media/v4l2-ctrls.h>
 #include <media/v4l2-event.h>
 #include <linux/mutex.h>
 
@@ -53,9 +53,9 @@ static struct usb_device_id usb_si4713_device_table[] = {
 MODULE_DEVICE_TABLE(usb, usb_si4713_device_table);
 
 struct si4713_device {
-	struct usb_device *usbdev;
+	struct usb_device *usbdev; /* the usb device for this device */
 	struct usb_interface *intf;
-	struct video_device vdev;
+	struct video_device vdev; /* the v4l device for this device */
 	struct v4l2_device v4l2_dev;
 	//struct v4l2_ctrl_handler hdl;
 	struct mutex lock;
@@ -116,16 +116,18 @@ static int vidioc_g_frequency(struct file *file, void *priv,
  return 0;
 }
 
-static int vidioc_log_status(struct file *file, void *priv)
-{
-  /*TODO : To be implemented 
-    * Intended to be a debugging aid for video application writers.
-    * Should print information describing the current status of the driver and its hardware.
-    * Should be sufficiently verbose to help a confused application developer figure out why
-    the video display is coming up blank
-    * Should be moderated with a call to printk_ratelimit() to keep it from being used to slow 
-    the system and fill the logfiles with junk */
-}
+// static int vidioc_log_status(struct file *file, void *priv)
+// {
+//   /*TODO : To be implemented 
+//     * Intended to be a debugging aid for video application writers.
+//     * Should print information describing the current status of the driver and its hardware.
+//     * Should be sufficiently verbose to help a confused application developer figure out why
+//     the video display is coming up blank
+//     * Should be moderated with a call to printk_ratelimit() to keep it from being used to slow 
+//     the system and fill the logfiles with junk */
+//   return 0;
+// }
+
 
 
 /* File system interface */
@@ -161,9 +163,8 @@ static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
 /* check if the device is present and register with v4l and usb if it is */
 static int usb_si4713_probe(struct usb_interface *intf,
 				const struct usb_device_id *id)
-{
-	
-	struct usb_device *dev = interface_to_usbdev(intf);
+{	
+	struct usb_device *dev = interface_to_usbdev(intf); /* WARNING : unused variable */
 	struct si4713_device *radio;
 	//struct v4l2_ctrl_handler *hdl;
 	int retval = 0;
@@ -229,7 +230,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 		dev_err(&intf->dev, "could not register video device\n");
 		goto err_vdev;
 	}
-	v4l2_ctrl_handler_setup(hdl);
+	//v4l2_ctrl_handler_setup(hdl);
 	dev_info(&intf->dev, "V4L2 device registered as %s\n",
 			video_device_node_name(&radio->vdev));
 	
@@ -294,6 +295,16 @@ static void __exit si4713_exit(void)
 {
 	usb_deregister(&usb_si4713_driver);
 }
+
+
+/* 
+ static struct i2c_adapter si4713_i2c_adapter_template = {
+	.name   = "Si4713 I2C",
+	.owner  = THIS_MODULE,
+	.algo   = &si4713_algo,
+};
+ 
+ */
 
 module_init(si4713_init);
 module_exit(si4713_exit);
