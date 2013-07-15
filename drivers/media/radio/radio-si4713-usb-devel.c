@@ -30,6 +30,8 @@
 #include <media/v4l2-event.h>
 #include <linux/mutex.h>
 
+#include <linux/i2c.h>
+
 /* driver and module definitions */
 MODULE_AUTHOR("Dinesh Ram <dinesh.ram@cern.ch> and Hans Verkuil<>");
 MODULE_DESCRIPTION("Si4713 FM Transmitter usb driver");
@@ -59,6 +61,8 @@ struct si4713_device {
 	struct v4l2_device v4l2_dev;
 	//struct v4l2_ctrl_handler hdl;
 	struct mutex lock;
+	/* I2C adapter */
+	struct i2c_adapter i2c_adapter;
 
 	u8 *buffer;
 	unsigned curfreq;
@@ -287,6 +291,9 @@ static int __init si4713_init(void)
 	if (retval)
 		pr_err(KBUILD_MODNAME
 			": usb_register failed. Error number %d\n", retval);
+	
+	// for registering i2c device
+	//retval = i2c_add_adapter(&si4713_i2c_adapter_template);
 
 	return retval;
 }
@@ -297,14 +304,66 @@ static void __exit si4713_exit(void)
 }
 
 
+// start i2c code
+
+static u32 si4713_functionality(struct i2c_adapter *adapter)
+{
+	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
+}
+
+static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs,
+			  int num)
+{
+  // TODO : Implement this
+  return 0;
+}
+/*
+ * To unregister an I2C adapter, the driver should call the function i2c_del_adapter with a pointer to the struct i2c_adapter,
+ *  like this:  i2c_del_adapter(&si4713_i2c_adapter_template);
+ 
+ * An I2C algorithm is used by the I2C bus driver to talk to the I2C bus.
+ * An algorithm driver is defined by a struct i2c_algorithm structure.
+ */
+ 
+ static struct i2c_algorithm si4713_algo = {
+	.master_xfer   = si4713_transfer,         // a function pointer to be set if this algorithm driver can do I2C direct-level accesses. 
+					      // If it is set, this function is called whenever an I2C chip driver wants to communicate with the chip device.
+	.functionality = si4713_functionality, // a function pointer called by the I2C core to determine what kind of reads and writes the I2C adapter driver can do.
+};
+
 /* 
- static struct i2c_adapter si4713_i2c_adapter_template = {
-	.name   = "Si4713 I2C",
+ * An I2C bus driver is described by a struct named i2c_adapter, which is defined in the include/linux/i2c.h file. 
+ * Only the following fields need to be set up by the bus driver */
+ 
+static struct i2c_adapter si4713_i2c_adapter_template = {
+	.name   = "Si4713 I2C", // This value shows up in the sysfs filename associated with this I2C adapter
 	.owner  = THIS_MODULE,
 	.algo   = &si4713_algo,
 };
- 
- */
+
+/*
+ * To register this I2C adapter, the driver calls the function i2c_add_adapter with a pointer to the struct i2c_adapter
+ * If the I2C adapter lives on a type of device that has a struct device associated with it, such as a PCI or USB device, 
+ *  then before the call to i2c_add_adapter, the adapter device's parent pointer should be set to that device. */
+
+int si4713_register_i2c_adapter(struct si4713_device *dev)
+{
+	int retval = -ENOMEM;
+
+	//hdpvr_activate_ir(dev);
+
+	dev->i2c_adapter = si4713_i2c_adapter_template;
+	dev->i2c_adapter.dev.parent = &dev->usbdev->dev; // set up sysfs linkage to our parent device.
+
+	i2c_set_adapdata(&dev->i2c_adapter, dev);
+
+	retval = i2c_add_adapter(&dev->i2c_adapter);
+	printk(KERN_INFO "Si4713 development board i2c adapter registered");
+
+	return retval;
+}
+
+// end i2c code
 
 module_init(si4713_init);
 module_exit(si4713_exit);
