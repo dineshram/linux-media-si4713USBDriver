@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Dinesh Ram <dinesh.ram@cern.ch> and Hans Verkuil
+ * Copyright (c) 2013 Dinesh Ram<dinram@cisco.com> & Hans Verkuil<hansverk@cisco.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,27 +23,35 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/input.h>
+#include <linux/mutex.h>
+#include <linux/i2c.h>
+/* V4l includes */
+#include <media/v4l2-common.h>
 #include <linux/videodev2.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 //#include <media/v4l2-ctrls.h>
-#include <media/v4l2-event.h>
-#include <linux/mutex.h>
-
-#include <linux/i2c.h>
+//#include <media/v4l2-event.h>
+#include <linux/platform_device.h>
+#include <media/radio-si4713.h>
 
 /* driver and module definitions */
-MODULE_AUTHOR("Dinesh Ram <dinesh.ram@cern.ch> and Hans Verkuil<>");
+MODULE_AUTHOR("Dinesh Ram <dinram@cisco.com> and Hans Verkuil <hansverk@cisco.com>");
 MODULE_DESCRIPTION("Si4713 FM Transmitter usb driver");
 MODULE_LICENSE("GPL v2");
 
 /* The Device announces itself as Cygnal Integrated Products, Inc. */
-#define USB_SI4713_VENDOR 0x10c4
-#define USB_SI4713_PRODUCT 0x8244
+#define USB_SI4713_VENDOR	0x10c4
+#define USB_SI4713_PRODUCT	0x8244
 
 /* Probably USB_TIMEOUT should be modified in module parameter */
-#define BUFFER_LENGTH 64
-#define USB_TIMEOUT 500
+#define BUFFER_LENGTH	64
+#define USB_TIMEOUT	500
+
+/* The SI4713 I2C sensor chip has a fixed slave address of 0xc6 or 0x22. */
+#define SI4713_I2C_ADDR_BUSEN_HIGH      0x63
+#define SI4713_I2C_ADDR_BUSEN_LOW       0x11
+
 
 /* USB Device ID List */
 static struct usb_device_id usb_si4713_device_table[] = {
@@ -55,22 +63,22 @@ static struct usb_device_id usb_si4713_device_table[] = {
 MODULE_DEVICE_TABLE(usb, usb_si4713_device_table);
 
 struct si4713_device {
-	struct usb_device *usbdev; /* the usb device for this device */
-	struct usb_interface *intf;
-	struct video_device vdev; /* the v4l device for this device */
-	struct v4l2_device v4l2_dev;
-	//struct v4l2_ctrl_handler hdl;
-	struct mutex lock;
-	/* I2C adapter */
-	struct i2c_adapter i2c_adapter;
+	struct usb_device 	*usbdev;	/* the usb device for this device */
+	struct usb_interface 	*intf;
+	struct video_device 	vdev;		/* the v4l device for this device */
+	struct v4l2_device 	v4l2_dev;
+	
+	struct mutex 		lock;
+	
+	struct i2c_adapter 	i2c_adapter;	/* I2C adapter */
 
-	u8 *buffer;
-	unsigned curfreq;
-	u8 tx;
-	u8 pa;
-	bool stereo;
-	bool muted;
-	bool preemph_75_us;
+	u8 			*buffer;
+	unsigned 		curfreq;
+	u8 			tx;
+	u8 			pa;
+	bool 			stereo;
+	bool 			muted;
+	bool 			preemph_75_us;
 };
 
 static inline struct si4713_device *to_si4713_dev(struct v4l2_device *v4l2_dev)
@@ -139,7 +147,6 @@ static const struct v4l2_file_operations usb_si4713_fops = {
 	.owner		= THIS_MODULE,
 	.open           = v4l2_fh_open,
 	.release        = v4l2_fh_release,
-	//.poll		= v4l2_ctrl_poll,
 	.unlocked_ioctl	= video_ioctl2,
 };
 
@@ -150,8 +157,6 @@ static const struct v4l2_ioctl_ops usb_si4713_ioctl_ops = {
 	.vidioc_g_frequency = vidioc_g_frequency,
 	.vidioc_s_frequency = vidioc_s_frequency,
 	//.vidioc_log_status = v4l2_ctrl_log_status,
-	//.vidioc_subscribe_event = v4l2_ctrl_subscribe_event,
-	//.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
 static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
@@ -159,18 +164,93 @@ static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
 	struct si4713_device *radio = to_si4713_dev(v4l2_dev);
 
 	/* free rest memory */
-	//v4l2_ctrl_handler_free(&radio->hdl);
 	kfree(radio->buffer);
 	kfree(radio);
 }
 
+// start i2c code
+
+static struct i2c_board_info si4713_board_info __initdata_or_module = {
+	I2C_BOARD_INFO("si4713", SI4713_I2C_ADDR_BUSEN_HIGH),
+};
+
+/*from include/media/radio-si4713.h */
+static struct radio_si4713_platform_data si4713_data __initdata_or_module = {
+	.i2c_bus = 2,
+	.subdev_board_info = &si4713_board_info,
+};
+
+static u32 si4713_functionality(struct i2c_adapter *adapter)
+{
+	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
+}
+
+static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs,
+			  int num)
+{
+  // TODO : Implement this
+  printk(KERN_INFO "si4713_transfer : i2c adapter transfer function\n");
+  return 0;
+}
+
+/*
+ * To unregister an I2C adapter, the driver should call the function i2c_del_adapter with a pointer to the struct i2c_adapter,
+ *  like this:  i2c_del_adapter(&si4713_i2c_adapter_template);
+ 
+ * An I2C algorithm is used by the I2C bus driver to talk to the I2C bus.
+ * An algorithm driver is defined by a struct i2c_algorithm structure.
+ */
+ 
+ static struct i2c_algorithm si4713_algo = {
+	.master_xfer   = si4713_transfer,	// a function pointer to be set if this algorithm driver can do I2C direct-level accesses. 
+						// If it is set, this function is called whenever an I2C chip driver wants to communicate with the chip device.
+	.functionality = si4713_functionality,	// a function pointer called by the I2C core to determine what kind of reads and writes the I2C adapter driver can do.
+};
+
+
+/* 
+ * An I2C bus driver is described by a struct named i2c_adapter, which is defined in the include/linux/i2c.h file. 
+ * Only the following fields need to be set up by the bus driver */
+ 
+static struct i2c_adapter si4713_i2c_adapter_template = {
+	.name   = "Si4713-I2C-fooooo",	// This value shows up in the sysfs filename associated with this I2C adapter
+	.owner  = THIS_MODULE,
+	.algo   = &si4713_algo,
+};
+
+/*
+ * To register this I2C adapter, the driver calls the function i2c_add_adapter with a pointer to the struct i2c_adapter
+ * If the I2C adapter lives on a type of device that has a struct device associated with it, such as a PCI or USB device, 
+ *  then before the call to i2c_add_adapter, the adapter device's parent pointer should be set to that device. */
+
+int si4713_register_i2c_adapter(struct si4713_device *dev)
+{
+	int retval = -ENOMEM;
+
+	dev->i2c_adapter = si4713_i2c_adapter_template;
+	dev->i2c_adapter.dev.parent = &dev->usbdev->dev; // set up sysfs linkage to our parent device.
+
+	i2c_set_adapdata(&dev->i2c_adapter, dev);
+
+	retval = i2c_add_adapter(&dev->i2c_adapter);
+	if (retval < 0) {
+	  printk(KERN_INFO "si4713_register_i2c_adapter : i2c adapter failed to register\n");
+	}
+	printk(KERN_INFO "si4713_register_i2c_adapter : i2c adapter registered\n");
+	return retval;
+}
+
+// end i2c code
+
 /* check if the device is present and register with v4l and usb if it is */
 static int usb_si4713_probe(struct usb_interface *intf,
-				const struct usb_device_id *id)
+				const struct usb_device_id *id) 
 {	
 	struct usb_device *dev = interface_to_usbdev(intf); /* WARNING : unused variable */
 	struct si4713_device *radio;
-	//struct v4l2_ctrl_handler *hdl;
+	struct i2c_adapter *adapter;
+	struct v4l2_subdev *sd;
+	//struct radio_si4713_platform_data *si4713_data;
 	int retval = 0;
 	
 	/*just for testing*/
@@ -180,6 +260,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
             iface_desc->desc.bInterfaceNumber, id->idVendor, id->idProduct);
 	printk(KERN_INFO "ID->bInterfaceClass: %02X\n",
             iface_desc->desc.bInterfaceClass);
+
 	
 	/* Initialize our local device structure */
 	radio = kzalloc(sizeof(struct si4713_device), GFP_KERNEL);
@@ -193,17 +274,16 @@ static int usb_si4713_probe(struct usb_interface *intf,
 		goto err;
 	}
 	
-	//hdl = &radio->hdl;
-	//v4l2_ctrl_handler_init(hdl, 4);
 	/* TODO : some code to be written here */
 	
-	//if (hdl->error) {
-	//	retval = hdl->error;
-	//
-	//	v4l2_ctrl_handler_free(hdl);
-	//	goto err_v4l2;
-	//}
-	retval = v4l2_device_register(&intf->dev, &radio->v4l2_dev);
+	
+	/* Device Registration : v4l2_device_register(struct device *dev, struct v4l2_device *v4l2_dev);
+	   Registration will initialize the v4l2_device struct and link dev->driver_data
+	   to v4l2_dev. Registration will also set v4l2_dev->name to a value derived from
+	   dev (driver name followed by the bus_id, to be precise). 
+	   The first 'dev' argument is normally the struct device pointer of a pci_dev,
+	   usb_device or platform_device.*/
+	retval = v4l2_device_register(&intf->dev, &radio->v4l2_dev);	
 	if (retval < 0) {
 		dev_err(&intf->dev, "couldn't register v4l2_device\n");
 		goto err_v4l2;
@@ -211,7 +291,23 @@ static int usb_si4713_probe(struct usb_interface *intf,
 
 	mutex_init(&radio->lock);
 	
-	//radio->v4l2_dev.ctrl_handler = hdl;
+	/* from radio-si4713.c*/
+	//adapter = i2c_get_adapter(pdata->i2c_bus);
+	adapter = &radio->i2c_adapter;
+	if (!adapter) {
+		dev_err(&intf->dev, "Cannot get i2c adapter\n"); /* pdata->i2c_bus */
+		retval = -ENODEV;
+		goto unregister_v4l2_dev;
+	}
+
+	sd = v4l2_i2c_new_subdev_board(&radio->v4l2_dev, adapter,
+				       si4713_data.subdev_board_info, NULL);
+	if (!sd) {
+		dev_err(&intf->dev, "Cannot get v4l2 subdevice\n");
+		retval = -ENODEV;
+		goto put_adapter; 
+	}
+	
 	radio->v4l2_dev.release = usb_si4713_video_device_release;
 	strlcpy(radio->vdev.name, radio->v4l2_dev.name,
 		sizeof(radio->vdev.name));
@@ -234,12 +330,30 @@ static int usb_si4713_probe(struct usb_interface *intf,
 		dev_err(&intf->dev, "could not register video device\n");
 		goto err_vdev;
 	}
-	//v4l2_ctrl_handler_setup(hdl);
+	
 	dev_info(&intf->dev, "V4L2 device registered as %s\n",
 			video_device_node_name(&radio->vdev));
 	
+	// register 12c device
+	printk(KERN_INFO "probe : initialize registering 12c device\n");
+	retval = si4713_register_i2c_adapter(radio);
+	printk(KERN_INFO "probe : finished registering 12c device\n");
+	if (retval < 0) {
+		dev_err(&intf->dev, "could not register i2c device\n");
+		goto err_i2cdev;
+	}
+	
 	return 0;
 	
+put_adapter:
+	i2c_put_adapter(adapter);
+
+unregister_v4l2_dev:
+	v4l2_device_unregister(&radio->v4l2_dev);
+
+err_i2cdev:
+	printk(KERN_INFO "err_i2cdev"); 
+
 err_vdev:
 	printk(KERN_INFO "err_vdev");
 	v4l2_device_unregister(&radio->v4l2_dev);
@@ -284,6 +398,7 @@ static struct usb_driver usb_si4713_driver = {
 	.reset_resume		= usb_si4713_resume,*/
 };
 
+
 static int __init si4713_init(void)
 {
 	int retval = usb_register(&usb_si4713_driver);
@@ -291,9 +406,6 @@ static int __init si4713_init(void)
 	if (retval)
 		pr_err(KBUILD_MODNAME
 			": usb_register failed. Error number %d\n", retval);
-	
-	// for registering i2c device
-	//retval = i2c_add_adapter(&si4713_i2c_adapter_template);
 
 	return retval;
 }
@@ -302,68 +414,6 @@ static void __exit si4713_exit(void)
 {
 	usb_deregister(&usb_si4713_driver);
 }
-
-
-// start i2c code
-
-static u32 si4713_functionality(struct i2c_adapter *adapter)
-{
-	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
-}
-
-static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs,
-			  int num)
-{
-  // TODO : Implement this
-  return 0;
-}
-/*
- * To unregister an I2C adapter, the driver should call the function i2c_del_adapter with a pointer to the struct i2c_adapter,
- *  like this:  i2c_del_adapter(&si4713_i2c_adapter_template);
- 
- * An I2C algorithm is used by the I2C bus driver to talk to the I2C bus.
- * An algorithm driver is defined by a struct i2c_algorithm structure.
- */
- 
- static struct i2c_algorithm si4713_algo = {
-	.master_xfer   = si4713_transfer,         // a function pointer to be set if this algorithm driver can do I2C direct-level accesses. 
-					      // If it is set, this function is called whenever an I2C chip driver wants to communicate with the chip device.
-	.functionality = si4713_functionality, // a function pointer called by the I2C core to determine what kind of reads and writes the I2C adapter driver can do.
-};
-
-/* 
- * An I2C bus driver is described by a struct named i2c_adapter, which is defined in the include/linux/i2c.h file. 
- * Only the following fields need to be set up by the bus driver */
- 
-static struct i2c_adapter si4713_i2c_adapter_template = {
-	.name   = "Si4713 I2C", // This value shows up in the sysfs filename associated with this I2C adapter
-	.owner  = THIS_MODULE,
-	.algo   = &si4713_algo,
-};
-
-/*
- * To register this I2C adapter, the driver calls the function i2c_add_adapter with a pointer to the struct i2c_adapter
- * If the I2C adapter lives on a type of device that has a struct device associated with it, such as a PCI or USB device, 
- *  then before the call to i2c_add_adapter, the adapter device's parent pointer should be set to that device. */
-
-int si4713_register_i2c_adapter(struct si4713_device *dev)
-{
-	int retval = -ENOMEM;
-
-	//hdpvr_activate_ir(dev);
-
-	dev->i2c_adapter = si4713_i2c_adapter_template;
-	dev->i2c_adapter.dev.parent = &dev->usbdev->dev; // set up sysfs linkage to our parent device.
-
-	i2c_set_adapdata(&dev->i2c_adapter, dev);
-
-	retval = i2c_add_adapter(&dev->i2c_adapter);
-	printk(KERN_INFO "Si4713 development board i2c adapter registered");
-
-	return retval;
-}
-
-// end i2c code
 
 module_init(si4713_init);
 module_exit(si4713_exit);
