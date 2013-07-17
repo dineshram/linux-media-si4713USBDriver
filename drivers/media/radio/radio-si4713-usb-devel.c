@@ -229,7 +229,6 @@ int si4713_register_i2c_adapter(struct si4713_device *dev)
 
 	dev->i2c_adapter = si4713_i2c_adapter_template;
 	dev->i2c_adapter.dev.parent = &dev->usbdev->dev; // set up sysfs linkage to our parent device.
-
 	i2c_set_adapdata(&dev->i2c_adapter, dev);
 
 	retval = i2c_add_adapter(&dev->i2c_adapter);
@@ -276,7 +275,6 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	
 	/* TODO : some code to be written here */
 	
-	
 	/* Device Registration : v4l2_device_register(struct device *dev, struct v4l2_device *v4l2_dev);
 	   Registration will initialize the v4l2_device struct and link dev->driver_data
 	   to v4l2_dev. Registration will also set v4l2_dev->name to a value derived from
@@ -291,8 +289,21 @@ static int usb_si4713_probe(struct usb_interface *intf,
 
 	mutex_init(&radio->lock);
 	
+	radio->usbdev = interface_to_usbdev(intf);
+	radio->intf = intf;
+	usb_set_intfdata(intf, &radio->v4l2_dev);
+	
 	/* from radio-si4713.c*/
 	//adapter = i2c_get_adapter(pdata->i2c_bus);
+	// register 12c device
+	printk(KERN_INFO "probe : initialize registering i2c device\n");
+	retval = si4713_register_i2c_adapter(radio);
+	printk(KERN_INFO "probe : finished registering i2c device\n");
+	if (retval < 0) {
+		dev_err(&intf->dev, "could not register i2c device\n");
+		goto err_i2cdev;
+	}
+	
 	adapter = &radio->i2c_adapter;
 	if (!adapter) {
 		dev_err(&intf->dev, "Cannot get i2c adapter\n"); /* pdata->i2c_bus */
@@ -305,8 +316,9 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	if (!sd) {
 		dev_err(&intf->dev, "Cannot get v4l2 subdevice\n");
 		retval = -ENODEV;
-		goto put_adapter; 
+		goto del_adapter; 
 	}
+
 	
 	radio->v4l2_dev.release = usb_si4713_video_device_release;
 	strlcpy(radio->vdev.name, radio->v4l2_dev.name,
@@ -318,13 +330,9 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	radio->vdev.release = video_device_release_empty;
 	radio->vdev.vfl_dir = VFL_DIR_TX;
 
-	radio->usbdev = interface_to_usbdev(intf);
-	radio->intf = intf;
-	usb_set_intfdata(intf, &radio->v4l2_dev);
-
 	video_set_drvdata(&radio->vdev, radio);
 	set_bit(V4L2_FL_USE_FH_PRIO, &radio->vdev.flags);
-
+	
 	retval = video_register_device(&radio->vdev, VFL_TYPE_RADIO, -1);
 	if (retval < 0) {
 		dev_err(&intf->dev, "could not register video device\n");
@@ -334,19 +342,10 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	dev_info(&intf->dev, "V4L2 device registered as %s\n",
 			video_device_node_name(&radio->vdev));
 	
-	// register 12c device
-	printk(KERN_INFO "probe : initialize registering 12c device\n");
-	retval = si4713_register_i2c_adapter(radio);
-	printk(KERN_INFO "probe : finished registering 12c device\n");
-	if (retval < 0) {
-		dev_err(&intf->dev, "could not register i2c device\n");
-		goto err_i2cdev;
-	}
-	
 	return 0;
 	
-put_adapter:
-	i2c_put_adapter(adapter);
+del_adapter:
+	i2c_del_adapter(adapter);
 
 unregister_v4l2_dev:
 	v4l2_device_unregister(&radio->v4l2_dev);
