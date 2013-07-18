@@ -559,3 +559,4 @@ static void __exit si4713_exit(void)
 
 module_init(si4713_init);
 module_exit(si4713_exit);
+
