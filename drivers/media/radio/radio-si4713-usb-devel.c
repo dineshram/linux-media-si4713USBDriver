@@ -133,8 +133,9 @@ static int vidioc_s_frequency(struct file *file, void *priv,
 static int vidioc_g_frequency(struct file *file, void *priv,
 				struct v4l2_frequency *f)
 {
- /*TODO : To be implemented */
- return 0;
+	struct si4713_device *radio = video_drvdata(file);
+
+  	return v4l2_subdev_call(radio->sd, tuner, g_frequency, vf);
 }
 
 // static int vidioc_log_status(struct file *file, void *priv)
@@ -269,9 +270,10 @@ static struct radio_si4713_platform_data si4713_data __initdata_or_module = {
 static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs,
 			  int num)
 {
-  printk(KERN_INFO "si4713_transfer : i2c adapter transfer function\n");
-  return 0;
-  /*struct si4713_device *radio = i2c_get_adapdata(i2c_adapter);
+  printk(KERN_INFO "si4713_transfer : i2c adapter transfer function %p\n", i2c_adapter);
+  printk(KERN_INFO "si4713_transfer : i2c adapter transfer function %p\n", i2c_get_adapdata(i2c_adapter));
+  //return -EIO;
+  struct si4713_device *radio = i2c_get_adapdata(i2c_adapter);
   if (!radio) {
 	printk(KERN_INFO "si4713_transfer : failed to get a pointer from i2c_get_adapdata(i2c_adapter)\n");
 	goto err;
@@ -323,7 +325,7 @@ out:
 err:
   return 0;
 
-  return retval ? retval : num;  */
+  return retval ? retval : num; 
 }
 
 static u32 si4713_functionality(struct i2c_adapter *adapter)
@@ -426,6 +428,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	}
 
 	mutex_init(&radio->lock);
+	mutex_init(&radio->i2c_mutex);
 	
 	radio->usbdev = interface_to_usbdev(intf);
 	radio->intf = intf;
@@ -448,6 +451,8 @@ static int usb_si4713_probe(struct usb_interface *intf,
 		retval = -ENODEV;
 		goto unregister_v4l2_dev;
 	}
+	printk(KERN_INFO "probe : got adapter %p\n", adapter);
+	printk(KERN_INFO "probe : got adapter %p %p\n", radio, i2c_get_adapdata(adapter));
 
 	sd = v4l2_i2c_new_subdev_board(&radio->v4l2_dev, adapter,
 				       si4713_data.subdev_board_info, NULL);
