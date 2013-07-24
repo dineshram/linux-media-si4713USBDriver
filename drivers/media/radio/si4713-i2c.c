@@ -380,8 +380,8 @@ static int si4713_powerup(struct si4713_device *sdev)
 		v4l2_dbg(1, debug, &sdev->sd, "Device in power up mode\n");
 		sdev->power_state = POWER_ON;
 
-		err = si4713_write_property(sdev, SI4713_GPO_IEN,
-						SI4713_STC_INT | SI4713_CTS);
+		//err = si4713_write_property(sdev, SI4713_GPO_IEN,
+		//				SI4713_STC_INT | SI4713_CTS);
 	} else {
 		if (gpio_is_valid(sdev->gpio_reset))
 			gpio_set_value(sdev->gpio_reset, 0);
