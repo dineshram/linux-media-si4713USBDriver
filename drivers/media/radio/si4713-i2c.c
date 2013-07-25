@@ -232,11 +232,11 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 	}
 
 	/* Wait response from interrupt */
-	if (!wait_for_completion_timeout(&sdev->work,
+	/*if (!wait_for_completion_timeout(&sdev->work,
 				usecs_to_jiffies(usecs) + 1))
 		v4l2_warn(&sdev->sd,
 				"(%s) Device took too much time to answer.\n",
-				__func__);
+				__func__);*/
 
 	/* Then get the response */
 	err = i2c_master_recv(client, response, respn);
@@ -350,8 +350,12 @@ static int si4713_powerup(struct si4713_device *sdev)
 	 * 	.First byte = Enabled interrupts and boot function
 	 * 	.Second byte = Input operation mode
 	 */
-	const u8 args[SI4713_PWUP_NARGS] = {
+	/*const u8 args[SI4713_PWUP_NARGS] = {
 		SI4713_PWUP_CTSIEN | SI4713_PWUP_GPO2OEN | SI4713_PWUP_FUNC_TX,
+		SI4713_PWUP_OPMOD_ANALOG,
+	};*/
+	const u8 args[SI4713_PWUP_NARGS] = {
+		SI4713_PWUP_GPO2OEN | SI4713_PWUP_FUNC_TX,
 		SI4713_PWUP_OPMOD_ANALOG,
 	};
 
@@ -1016,13 +1020,13 @@ static int si4713_initialize(struct si4713_device *sdev)
 	if (rval < 0)
 		return rval;
 
-	rval = si4713_checkrev(sdev);
+	/*rval = si4713_checkrev(sdev);
 	if (rval < 0)
 		return rval;
 
 	rval = si4713_set_power_state(sdev, POWER_OFF);
 	if (rval < 0)
-		return rval;
+		return rval;*/
 
 
 	sdev->frequency = DEFAULT_FREQUENCY;

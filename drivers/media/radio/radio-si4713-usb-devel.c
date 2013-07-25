@@ -34,7 +34,7 @@
 
 /* driver and module definitions */
 MODULE_AUTHOR("Dinesh Ram <dinram@cisco.com> and Hans Verkuil <hansverk@cisco.com>");
-MODULE_DESCRIPTION("Si4713 FM Transmitter usb driver");
+MODULE_DESCRIPTION("Si4713 FM Transmitter USB driver");
 MODULE_LICENSE("GPL v2");
 
 /* The Device announces itself as Cygnal Integrated Products, Inc. */
@@ -71,7 +71,7 @@ struct si4713_device {
 	struct i2c_adapter 	i2c_adapter;	/* I2C adapter */
 	struct mutex		i2c_mutex;	/* I2C lock */
 
-	char 			*buffer;
+	u8 			*buffer;
 };
 
 static inline struct si4713_device *to_si4713_dev(struct v4l2_device *v4l2_dev)
@@ -85,7 +85,7 @@ static int vidioc_querycap(struct file *file, void *priv,
 {
 	struct si4713_device *radio = video_drvdata(file);
 
-	strlcpy(v->driver, "radio-si4713-usb", sizeof(v->driver));
+	strlcpy(v->driver, "radio-si4713-usb-devel", sizeof(v->driver));
 	strlcpy(v->card, "Si4713 FM Transmitter", sizeof(v->card));
 	usb_make_path(radio->usbdev, v->bus_info, sizeof(v->bus_info));
 	v->device_caps = V4L2_CAP_TUNER | V4L2_CAP_RADIO | V4L2_CAP_MODULATOR | V4L2_CAP_RDS_CAPTURE;
@@ -175,21 +175,21 @@ static struct i2c_board_info si4713_board_info __initdata_or_module = {
  * 
  
  */
-static int si4713_i2c_read(struct si4713_device *radio, char *wdata, int wlen,
-			    char *data, int len)
+static int si4713_i2c_read(struct si4713_device *radio, char *data, int len)
 {
 	int retval;
-	printk(KERN_INFO "si4713_i2c_read called with : %p, %p, %d, %p, %d\n ", &radio, &wdata, wlen, &data, len);
-	if ((len > BUFFER_LENGTH) || (wlen > BUFFER_LENGTH))
+	//int i;
+	printk(KERN_INFO "%s : called with : len = %d\n ", __func__, len);
+	if ((len > BUFFER_LENGTH))
 		return -EINVAL;
 
-	printk(KERN_INFO "calling usb_control_msg with : radio->usbdev = %p, value = %0x\n",  radio->usbdev, 0x033f);
-	retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
-			      0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT); //0x21, 0xa1, 0x22, 0x02c6; reqtype = 1, 9
-	printk(KERN_INFO "usb_control_msg returned %d\n", retval);
+	printk(KERN_INFO "%s : calling usb_control_msg\n", __func__);
+	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
+					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT); //0x21, 0xa1, 0x22, 0x02c6; reqtype = 1, 9
+	printk(KERN_INFO "%s : usb_control_msg returned %d\n", __func__, retval);
 
 	if (retval == BUFFER_LENGTH) {
-		memcpy(data, radio->buffer, len);
+		//memcpy(data, radio->buffer, );
 		retval = 0;
 	} else if (retval >= 0)
 		retval = -EIO;
@@ -200,16 +200,23 @@ static int si4713_i2c_read(struct si4713_device *radio, char *wdata, int wlen,
 static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 {
 	int retval;
-	printk(KERN_INFO "si4713_i2c_write called with : %p, %p, %d\n ", &radio, &data, len);
+	int i = 0;
+	printk(KERN_INFO "%s :called with : %d\n ", __func__, len);
 
 	if (len > BUFFER_LENGTH)
 		return -EINVAL;
-	//radio->buffer = 0x3f0600;
-	//printk(KERN_INFO "radio->buffer = %s", radio->buffer);
-	memcpy(radio->buffer, data, len);
+	radio->buffer[0] = 0x3f;
+	radio->buffer[1] = 0x06;
+	radio->buffer[2] = 0x00;
+	radio->buffer[3] = 0x06;
+	radio->buffer[4] = 0x01;
+	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
+	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
+	for (i = 0; i < 64; i++) { printk(KERN_INFO "%d ", radio->buffer[i]); }
+	//memcpy(radio->buffer, data, len);
 	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
-					0x09, 0x21, 0x033f, 0, radio->buffer, len, USB_TIMEOUT);
-	printk(KERN_INFO "retval : %d\n", retval);
+					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+	printk(KERN_INFO "%s : usb_control_msg retval : %d\n", __func__, retval);
 	return retval<0 ? retval : 0;
 }
 
@@ -229,11 +236,12 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 	     buf : The buffer into which data is read, or from which it's written. 
  */
 
-static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs,int num)
+static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs, int num)
 {
 	struct si4713_device *radio = i2c_get_adapdata(i2c_adapter);
 	int retval = 0;
 	u16 addr;
+	u16 len;
 	
 	if (num <= 0)
 		return 0;
@@ -243,10 +251,18 @@ static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs
 	printk(KERN_INFO "si4713_transfer : num = %d, msgs[0].addr = %d, msgs[0].len = %d\n", num, msgs[0].addr, msgs[0].len);
 
 	addr = msgs[0].addr << 1;
+	len = msgs[0].len;
 
 	if (num == 1) {
+		/*radio->buffer[0] = 0x3f;
+		radio->buffer[1] = 0x06;
+		radio->buffer[2] = 0x00;
+		radio->buffer[3] = 0x06;
+		radio->buffer[4] = 0x01;
+		for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
+		for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; }*/
 		if (msgs[0].flags & I2C_M_RD)
-			retval = si4713_i2c_read(radio, NULL, 0, msgs[0].buf, msgs[0].len);
+			retval = si4713_i2c_read(radio, msgs[0].buf, msgs[0].len);
 		else
 			retval = si4713_i2c_write(radio, msgs[0].buf, msgs[0].len);
 	}
@@ -314,7 +330,6 @@ int si4713_register_i2c_adapter(struct si4713_device *radio)
 static int usb_si4713_probe(struct usb_interface *intf,
 				const struct usb_device_id *id) 
 {	
-	// struct usb_device *usbdev = interface_to_usbdev(intf); /* WARNING : unused variable */ 
 	struct si4713_device *radio;
 	struct i2c_adapter *adapter;
 	struct v4l2_subdev *sd;
@@ -368,7 +383,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	
 	adapter = &radio->i2c_adapter;
 	if (!adapter) {
-		dev_err(&intf->dev, "Cannot get i2c adapter\n"); /* pdata->i2c_bus */
+		dev_err(&intf->dev, "Cannot get i2c adapter\n");
 		retval = -ENODEV;
 		goto unregister_v4l2_dev;
 	}
@@ -448,7 +463,7 @@ static void usb_si4713_disconnect(struct usb_interface *intf)
 
 /* USB subsystem interface */
 static struct usb_driver usb_si4713_driver = {
-	.name			= "radio-si4713-usb",
+	.name			= "radio-si4713-usb-devel",
 	.probe			= usb_si4713_probe,
 	.disconnect		= usb_si4713_disconnect,
 	.id_table		= usb_si4713_device_table,
