@@ -240,6 +240,7 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 
 	/* Then get the response */
 	err = i2c_master_recv(client, response, respn);
+	printk(KERN_INFO "%s : i2c_master_recv returned %d", __func__, err);
 	if (err != respn) {
 		v4l2_err(&sdev->sd,
 			"Error while reading response for command 0x%02x\n",
@@ -381,7 +382,9 @@ static int si4713_powerup(struct si4713_device *sdev)
 	if (!err) {
 		v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
 				resp[0]);
+		printk(KERN_INFO "Powerup response: 0x%02x\n",resp[0]);
 		v4l2_dbg(1, debug, &sdev->sd, "Device in power up mode\n");
+		printk(KERN_INFO "Device in power up mode\n");
 		sdev->power_state = POWER_ON;
 
 		//err = si4713_write_property(sdev, SI4713_GPO_IEN,
@@ -1017,16 +1020,18 @@ static int si4713_initialize(struct si4713_device *sdev)
 	int rval;
 
 	rval = si4713_set_power_state(sdev, POWER_ON);
+	printk(KERN_INFO "%s : si4713_set_power_state returned %d\n ", __func__, rval);
 	if (rval < 0)
 		return rval;
 
 	/*rval = si4713_checkrev(sdev);
+	printk(KERN_INFO "%s : si4713_checkrev returned %d\n ", __func__, rval);
 	if (rval < 0)
-		return rval;
+		return rval;*/
 
 	rval = si4713_set_power_state(sdev, POWER_OFF);
 	if (rval < 0)
-		return rval;*/
+		return rval;
 
 
 	sdev->frequency = DEFAULT_FREQUENCY;
