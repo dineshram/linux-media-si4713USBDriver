@@ -231,6 +231,8 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 		return (err > 0) ? -EIO : err;
 	}
 
+	unsigned long until_jiffies = usecs_to_jiffies(usecs) + 1;
+	msleep(until_jiffies);
 	/* Wait response from interrupt */
 	/*if (!wait_for_completion_timeout(&sdev->work,
 				usecs_to_jiffies(usecs) + 1))
@@ -239,17 +241,33 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 				__func__);*/
 
 	/* Then get the response */
+	/*while (true) {
+		err = i2c_master_recv(client, response, respn);
+		printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
+		if (err != respn) {
+			v4l2_err(&sdev->sd,
+					"Error while reading response for command 0x%02x\n",
+					command);
+			return (err > 0) ? -EIO : err;
+		}
+
+		DBG_BUFFER(&sdev->sd, "Response", response, respn);
+		if (check_command_failed(response[0]) && jiffies > until_jiffies)
+			return -EBUSY;
+		msleep(HZ); // sleep for 1 jiffy
+	}*/
+	
 	err = i2c_master_recv(client, response, respn);
-	printk(KERN_INFO "%s : i2c_master_recv returned %d", __func__, err);
+	printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
 	if (err != respn) {
 		v4l2_err(&sdev->sd,
-			"Error while reading response for command 0x%02x\n",
-			command);
+				"Error while reading response for command 0x%02x\n",
+				command);
 		return (err > 0) ? -EIO : err;
 	}
 
 	DBG_BUFFER(&sdev->sd, "Response", response, respn);
-	if (check_command_failed(response[0]))
+	if (check_command_failed(response[0]) && jiffies > until_jiffies)
 		return -EBUSY;
 
 	return 0;
@@ -445,6 +463,8 @@ static int si4713_checkrev(struct si4713_device *sdev)
 	struct i2c_client *client = v4l2_get_subdevdata(&sdev->sd);
 	int rval;
 	u8 resp[SI4713_GETREV_NRESP];
+	
+	printk(KERN_INFO "%s method called\n", __func__);
 
 	rval = si4713_send_command(sdev, SI4713_CMD_GET_REV,
 					NULL, 0,
@@ -1024,10 +1044,10 @@ static int si4713_initialize(struct si4713_device *sdev)
 	if (rval < 0)
 		return rval;
 
-	/*rval = si4713_checkrev(sdev);
+	rval = si4713_checkrev(sdev);
 	printk(KERN_INFO "%s : si4713_checkrev returned %d\n ", __func__, rval);
 	if (rval < 0)
-		return rval;*/
+		return rval;
 
 	rval = si4713_set_power_state(sdev, POWER_OFF);
 	if (rval < 0)

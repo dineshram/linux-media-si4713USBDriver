@@ -51,7 +51,14 @@ MODULE_LICENSE("GPL v2");
 
 #define SI4713_CMD_POWER_UP		0x01
 #define SI4713_CMD_GET_REV		0x10
-
+#define SI4713_CMD_POWER_DOWN		0x11
+#define	SI4713_CMD_SET_PROPERTY		0x12
+#define SI4713_CMD_GET_PROPERTY		0x13
+#define SI4713_CMD_TX_TUNE_FREQ		0x30
+#define SI4713_CMD_TX_TUNE_POWER	0x31
+#define SI4713_CMD_TX_TUNE_MEASURE	0x32
+#define SI4713_CMD_TX_TUNE_STATUS	0x33
+#define SI4713_CMD_TX_ASQ_STATUS	0x34
 
 /* USB Device ID List */
 static struct usb_device_id usb_si4713_device_table[] = {
@@ -165,8 +172,11 @@ static const struct v4l2_file_operations usb_si4713_fops = {
 static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
 {
 	struct si4713_device *radio = to_si4713_dev(v4l2_dev);
+	struct i2c_adapter *adapter = &radio->i2c_adapter;
 
 	/* free rest memory */
+	i2c_del_adapter(adapter);
+	v4l2_device_unregister(&radio->v4l2_dev);
 	kfree(radio->buffer);
 	kfree(radio);
 }
@@ -187,9 +197,9 @@ static int send_command(struct si4713_device *radio)
 	if (retval < 0)
 		return retval;
 	/* receive the response */
-	retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
+	/*retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 					0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-	printk(KERN_INFO "%s : usb_control_msg retval (receive): %d\n", __func__, retval);
+	printk(KERN_INFO "%s : usb_control_msg retval (receive): %d\n", __func__, retval);*/
 	return retval;
 }
 
@@ -227,32 +237,22 @@ static int si4713_getrev(struct si4713_device *radio, char *data, int len)
 	for (i = 0; i < 10; i++) { printk(KERN_INFO "%d ", radio->buffer[i]); }
 	
 	retval = send_command(radio);
-	/*retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
-					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-	printk(KERN_INFO "%s : usb_control_msg retval (send) : %d\n", __func__, retval);
-	if (retval < 0)
-		return retval;
-	
-	retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
-					0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-	printk(KERN_INFO "%s : usb_control_msg retval (receive) : %d\n", __func__, retval);*/
 	return retval;
 }
 
 /* usb_control_msg -- Send a control message to a device
  * int usb_control_msg (struct usb_device * dev, unsigned int pipe, __u8 request,
  *			 __u8 requesttype, __u16 value, __u16 index, void * data, __u16 size, int timeout);
- * 
- 
+ *  
  */
 static int si4713_i2c_read(struct si4713_device *radio, char *data, int len)
 {
 	int retval;
 	int i;
-	printk(KERN_INFO "%s : called with : len = %d and command = %d\n ", __func__, len, data[0]);
+	/*printk(KERN_INFO "%s : called with : len = %d and command = %d\n ", __func__, len, data[0]);
 	for (i = 0; i < len; i++) { printk(KERN_INFO "%d ", data[i]); }
 	printk(KERN_INFO "\n%s : printing radio->buffer contents\n", __func__);
-	for (i = 0; i < 64; i++) { printk(KERN_INFO "%d ", radio->buffer[i]); }
+	for (i = 0; i < 12; i++) { printk(KERN_INFO "%d ", radio->buffer[i]); }
 	
 	if ((len > BUFFER_LENGTH))
 		return -EINVAL;
@@ -261,13 +261,15 @@ static int si4713_i2c_read(struct si4713_device *radio, char *data, int len)
 	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
 					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT); //0x21, 0xa1, 0x22, 0x02c6; reqtype = 1, 9
 	if (retval < 0)
-		return retval;
+		return retval; */
 	/* receive the response */
 	retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 					0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 	printk(KERN_INFO "%s : usb_control_msg returned %d\n", __func__, retval);
+	for (i = 0; i < len; i++) { printk(KERN_INFO "%d ", radio->buffer[i]); }
 
 	if (retval == BUFFER_LENGTH) {
+		memcpy(data, radio->buffer, len);
 		retval = 0;
 	} else if (retval >= 0)
 		retval = -EIO;
@@ -295,6 +297,30 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 		case SI4713_CMD_GET_REV:
 			retval = si4713_getrev(radio, data, len);
 			break;
+		case SI4713_CMD_POWER_DOWN:
+			
+			break;
+		case SI4713_CMD_SET_PROPERTY:
+			
+			break;
+		case SI4713_CMD_GET_PROPERTY:
+			
+			break;
+		case SI4713_CMD_TX_TUNE_FREQ:
+			
+			break;
+		case SI4713_CMD_TX_TUNE_POWER:
+			
+			break;
+		case SI4713_CMD_TX_TUNE_MEASURE:
+			
+			break;
+		case SI4713_CMD_TX_TUNE_STATUS:
+			
+			break;
+		case SI4713_CMD_TX_ASQ_STATUS:
+			
+			break;	
 	}
 				
 	return retval < 0 ? retval : 0;
@@ -320,24 +346,21 @@ static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs
 {
 	struct si4713_device *radio = i2c_get_adapdata(i2c_adapter);
 	int retval = -EINVAL;
-	u16 addr;
-	u16 len;
+	int i;
 	
 	if (num <= 0)
 		return 0;
 	
 	mutex_lock(&radio->i2c_mutex);
-	
 	printk(KERN_INFO "si4713_transfer : num = %d, msgs[0].addr = %d, msgs[0].len = %d\n", num, msgs[0].addr, msgs[0].len);
 
-	addr = msgs[0].addr << 1;
-	len = msgs[0].len;
-
-	if (num == 1) {
-		if (msgs[0].flags & I2C_M_RD)
-			retval = si4713_i2c_read(radio, msgs[0].buf, msgs[0].len);
+	for (i = 0; i < num; i++) {
+		if (msgs[i].flags & I2C_M_RD)
+			retval = si4713_i2c_read(radio, msgs[i].buf, msgs[i].len);
 		else
-			retval = si4713_i2c_write(radio, msgs[0].buf, msgs[0].len);
+			retval = si4713_i2c_write(radio, msgs[i].buf, msgs[i].len);
+		if (retval)
+			break;
 	}
 	
 	mutex_unlock(&radio->i2c_mutex);
@@ -349,7 +372,6 @@ static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs
 static u32 si4713_functionality(struct i2c_adapter *adapter)
 {
 	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
-	
 }
 
 /*
@@ -425,8 +447,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	if (!radio || !radio->buffer) {
 		dev_err(&intf->dev, "kmalloc for si4713_device failed\n");
 		kfree(radio);
-		retval = -ENOMEM;
-		goto err;
+		return -ENOMEM;
 	}
 	
 	/* Device Registration : v4l2_device_register(struct device *usbdev, struct v4l2_device *v4l2_dev);
@@ -455,11 +476,6 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	}
 	
 	adapter = &radio->i2c_adapter;
-	if (!adapter) {
-		dev_err(&intf->dev, "Cannot get i2c adapter\n");
-		retval = -ENODEV;
-		goto unregister_v4l2_dev;
-	}
 	sd = v4l2_i2c_new_subdev_board(&radio->v4l2_dev, adapter,
 					  &si4713_board_info, NULL);
 	radio->v4l2_subdev = sd;
@@ -487,32 +503,21 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	retval = video_register_device(&radio->vdev, VFL_TYPE_RADIO, -1);
 	if (retval < 0) {
 		dev_err(&intf->dev, "could not register video device\n");
-		goto err_vdev;
+		goto del_adapter;
 	}
 	
 	dev_info(&intf->dev, "V4L2 device registered as %s\n",
 			video_device_node_name(&radio->vdev));
 	
 	return 0;
-	
+
 del_adapter:
 	i2c_del_adapter(adapter);
-
-unregister_v4l2_dev:
-	v4l2_device_unregister(&radio->v4l2_dev);
-
 err_i2cdev:
-	printk(KERN_INFO "label : err_i2cdev\n"); 
-
-err_vdev:
-	printk(KERN_INFO "label : err_vdev\n");
 	v4l2_device_unregister(&radio->v4l2_dev);
 err_v4l2:
-	printk(KERN_INFO "label : err_v4l2\n");
 	kfree(radio->buffer);
 	kfree(radio);
-err:
-	printk(KERN_INFO "label : err\n");
 	return retval;
 }
 
