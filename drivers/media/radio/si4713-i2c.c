@@ -215,6 +215,9 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 	struct i2c_client *client = v4l2_get_subdevdata(&sdev->sd);
 	u8 data1[MAX_ARGS + 1];
 	int err;
+	int i;
+	
+	unsigned long until_jiffies = usecs_to_jiffies(usecs) + 1;
 
 	if (!client->adapter)
 		return -ENODEV;
@@ -225,38 +228,40 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 	DBG_BUFFER(&sdev->sd, "Parameters", data1, argn + 1);
 
 	err = i2c_master_send(client, data1, argn + 1);
+	printk(KERN_INFO "%s : i2c_master_send returned %d\n", __func__, err);
 	if (err != argn + 1) {
 		v4l2_err(&sdev->sd, "Error while sending command 0x%02x\n",
 			command);
 		return (err > 0) ? -EIO : err;
 	}
 
-	unsigned long until_jiffies = usecs_to_jiffies(usecs) + 1;
-	msleep(until_jiffies);
 	/* Wait response from interrupt */
 	/*if (!wait_for_completion_timeout(&sdev->work,
 				usecs_to_jiffies(usecs) + 1))
 		v4l2_warn(&sdev->sd,
 				"(%s) Device took too much time to answer.\n",
 				__func__);*/
+	while(jiffies < until_jiffies)
+		msleep(1);
 
 	/* Then get the response */
-	/*while (true) {
-		err = i2c_master_recv(client, response, respn);
-		printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
-		if (err != respn) {
-			v4l2_err(&sdev->sd,
-					"Error while reading response for command 0x%02x\n",
-					command);
-			return (err > 0) ? -EIO : err;
-		}
+// 	while (true) {
+// 		err = i2c_master_recv(client, response, respn);
+// 		printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
+// 		if (err != respn) {
+// 			v4l2_err(&sdev->sd,
+// 					"Error while reading response for command 0x%02x\n",
+// 					command);
+// 			return (err > 0) ? -EIO : err;
+// 		}
+// 
+// 		DBG_BUFFER(&sdev->sd, "Response", response, respn);
+// 		for (i = 0; i < respn; i++) { printk(KERN_INFO "response[%d] = %d", i, response[i]); }
+// 		if (check_command_failed(response[0]) && jiffies > until_jiffies)
+// 			return -EBUSY;
+// 		msleep(HZ/100); // sleep for 1 jiffy
+// 	}
 
-		DBG_BUFFER(&sdev->sd, "Response", response, respn);
-		if (check_command_failed(response[0]) && jiffies > until_jiffies)
-			return -EBUSY;
-		msleep(HZ); // sleep for 1 jiffy
-	}*/
-	
 	err = i2c_master_recv(client, response, respn);
 	printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
 	if (err != respn) {
@@ -267,8 +272,9 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 	}
 
 	DBG_BUFFER(&sdev->sd, "Response", response, respn);
-	if (check_command_failed(response[0]) && jiffies > until_jiffies)
-		return -EBUSY;
+	for (i = 0; i < respn; i++) { printk(KERN_INFO "response[%d] = %d ", i, response[i]); }
+	//if (check_command_failed(response[0]))
+	//	return -EBUSY;
 
 	return 0;
 }
@@ -364,7 +370,9 @@ static int si4713_write_property(struct si4713_device *sdev, u16 prop, u16 val)
 static int si4713_powerup(struct si4713_device *sdev)
 {
 	int err;
-	u8 resp[SI4713_PWUP_NRESP];
+	//u8 resp[SI4713_PWUP_NRESP];
+	u8 resp[64];
+	int i;
 	/*
 	 * 	.First byte = Enabled interrupts and boot function
 	 * 	.Second byte = Input operation mode
@@ -392,17 +400,24 @@ static int si4713_powerup(struct si4713_device *sdev)
 		gpio_set_value(sdev->gpio_reset, 1);
 	}
 
+	//err = si4713_send_command(sdev, SI4713_CMD_POWER_UP,
+	//				args, ARRAY_SIZE(args),
+	//				resp, ARRAY_SIZE(resp),
+	//				TIMEOUT_POWER_UP);
 	err = si4713_send_command(sdev, SI4713_CMD_POWER_UP,
 					args, ARRAY_SIZE(args),
-					resp, ARRAY_SIZE(resp),
+					resp, 64,
 					TIMEOUT_POWER_UP);
+	printk(KERN_INFO "%s : printing the response buffer \n" , __func__);
+	for(i = 0; i < 64; i++) { printk(KERN_INFO "%d ", resp[i]); }
+	printk(KERN_INFO "%s : si4713_send_command returned %d \n" , __func__, err);
+	v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
+				resp[0]);
 
 	if (!err) {
 		v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
 				resp[0]);
-		printk(KERN_INFO "Powerup response: 0x%02x\n",resp[0]);
 		v4l2_dbg(1, debug, &sdev->sd, "Device in power up mode\n");
-		printk(KERN_INFO "Device in power up mode\n");
 		sdev->power_state = POWER_ON;
 
 		//err = si4713_write_property(sdev, SI4713_GPO_IEN,
@@ -1039,7 +1054,7 @@ static int si4713_initialize(struct si4713_device *sdev)
 {
 	int rval;
 
-	rval = si4713_set_power_state(sdev, POWER_ON);
+	/*rval = si4713_set_power_state(sdev, POWER_ON);
 	printk(KERN_INFO "%s : si4713_set_power_state returned %d\n ", __func__, rval);
 	if (rval < 0)
 		return rval;
@@ -1056,7 +1071,7 @@ static int si4713_initialize(struct si4713_device *sdev)
 
 	sdev->frequency = DEFAULT_FREQUENCY;
 	sdev->stereo = 1;
-	sdev->tune_rnl = DEFAULT_TUNE_RNL;
+	sdev->tune_rnl = DEFAULT_TUNE_RNL;*/
 	return 0;
 }
 
