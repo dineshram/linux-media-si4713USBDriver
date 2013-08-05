@@ -272,9 +272,8 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 	}
 
 	DBG_BUFFER(&sdev->sd, "Response", response, respn);
-	for (i = 0; i < respn; i++) { printk(KERN_INFO "response[%d] = %d ", i, response[i]); }
-	//if (check_command_failed(response[0]))
-	//	return -EBUSY;
+	if (check_command_failed(response[0]))
+		return -EBUSY;
 
 	return 0;
 }
@@ -408,8 +407,6 @@ static int si4713_powerup(struct si4713_device *sdev)
 					args, ARRAY_SIZE(args),
 					resp, 64,
 					TIMEOUT_POWER_UP);
-	printk(KERN_INFO "%s : printing the response buffer \n" , __func__);
-	for(i = 0; i < 64; i++) { printk(KERN_INFO "%d ", resp[i]); }
 	printk(KERN_INFO "%s : si4713_send_command returned %d \n" , __func__, err);
 	v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
 				resp[0]);
@@ -1054,12 +1051,12 @@ static int si4713_initialize(struct si4713_device *sdev)
 {
 	int rval;
 
-	/*rval = si4713_set_power_state(sdev, POWER_ON);
+	rval = si4713_set_power_state(sdev, POWER_ON);
 	printk(KERN_INFO "%s : si4713_set_power_state returned %d\n ", __func__, rval);
 	if (rval < 0)
 		return rval;
 
-	rval = si4713_checkrev(sdev);
+	/*rval = si4713_checkrev(sdev);
 	printk(KERN_INFO "%s : si4713_checkrev returned %d\n ", __func__, rval);
 	if (rval < 0)
 		return rval;
