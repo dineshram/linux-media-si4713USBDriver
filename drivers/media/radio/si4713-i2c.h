@@ -26,8 +26,7 @@
 #define TIMEOUT_SET_PROPERTY		20
 #define TIMEOUT_TX_TUNE_POWER		30000
 #define TIMEOUT_TX_TUNE			110000
-//#define TIMEOUT_POWER_UP		200000
-#define TIMEOUT_POWER_UP		6000000
+#define TIMEOUT_POWER_UP		200000
 
 /*
  * Command and its arguments definitions

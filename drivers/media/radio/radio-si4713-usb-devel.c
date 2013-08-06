@@ -506,7 +506,7 @@ static int si4713_powerup(struct si4713_device *radio, char *data, int len)
 	radio->buffer[0] = 0x3f;
 	radio->buffer[1] = 0x06;
 	radio->buffer[2] = 0x00;
-	radio->buffer[3] = 0x06;
+	radio->buffer[3] = 0x03;
 	radio->buffer[4] = 0x01;
 	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
 	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
@@ -526,6 +526,23 @@ static int si4713_getrev(struct si4713_device *radio, char *data, int len)
 	radio->buffer[2] = 0x03;
 	radio->buffer[3] = 0x01;
 	radio->buffer[4] = 0x10;
+	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
+	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
+	
+	retval = send_command(radio);
+	return retval;
+}
+
+static int si4713_getproperty(struct si4713_device *radio, char *data, int len)
+{
+	int retval;
+	int i = 0;
+	printk(KERN_INFO "in method %s \n", __func__);
+	radio->buffer[0] = 0x3f;
+	radio->buffer[1] = 0x06;
+	radio->buffer[2] = 0x00;
+	radio->buffer[3] = 0x04;
+	radio->buffer[4] = 0x04;
 	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
 	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
 	
@@ -582,7 +599,7 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 			
 			break;
 		case SI4713_CMD_GET_PROPERTY:
-			
+			retval = si4713_getproperty(radio, data, len);
 			break;
 		case SI4713_CMD_TX_TUNE_FREQ:
 			
