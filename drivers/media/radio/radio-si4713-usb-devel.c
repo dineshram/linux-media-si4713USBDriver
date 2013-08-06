@@ -60,6 +60,9 @@ MODULE_LICENSE("GPL v2");
 #define SI4713_CMD_TX_TUNE_STATUS	0x33
 #define SI4713_CMD_TX_ASQ_STATUS	0x34
 
+#define SLEEP	50
+#define TIMEOUT	50
+
 /* USB Device ID List */
 static struct usb_device_id usb_si4713_device_table[] = {
 	{USB_DEVICE_AND_INTERFACE_INFO(USB_SI4713_VENDOR, USB_SI4713_PRODUCT,
@@ -181,7 +184,8 @@ static int si4713_send_startup_command(struct si4713_device *radio)
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 		timeout += 1;
-	} while(radio->buffer[1] && timeout < 50);
+		msleep(SLEEP);
+	} while(radio->buffer[1] && timeout < TIMEOUT);
 	
 	return retval;
 }
@@ -189,10 +193,11 @@ static int si4713_send_startup_command(struct si4713_device *radio)
 static int si4713_start_usb(struct si4713_device *radio)
 {
 	int retval;
-	int i;
+	int i, j;
 	int timeout = 0;
 	/* TODO : Change this implementation !! */
 	
+	for(j = 0; j < 2; j++){
 	/* sending command : 3f 03 00 00.....00 */
 	radio->buffer[0] = 0x3f;
 	radio->buffer[1] = 0x03;
@@ -215,7 +220,8 @@ static int si4713_start_usb(struct si4713_device *radio)
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 		timeout += 1;
-	} while((radio->buffer[1] || radio->buffer[2]) && timeout < 50);
+		msleep(SLEEP);
+	} while((radio->buffer[1] || radio->buffer[2]) && timeout < TIMEOUT);
 	
 	/* sending command : 3f 03 00 00.....00 */
  	timeout = 0;
@@ -227,7 +233,17 @@ static int si4713_start_usb(struct si4713_device *radio)
 	radio->buffer[5] = 0x01;
 	radio->buffer[6] = 0x0f;
 	for(i = 7; i < 64; i++) { radio->buffer[i] = 0x00; }
- 	retval = si4713_send_startup_command(radio);
+	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
+ 					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+ 	if (retval < 0)
+ 		return retval;
+ 	do {
+ 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
+ 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+		timeout += 1;
+		msleep(SLEEP);
+ 	} while((radio->buffer[1] && radio->buffer[2] != 0x80 && radio->buffer[9] != 0x08) && timeout < TIMEOUT); 
+ 	//retval = si4713_send_startup_command(radio);
 	
 	/* sending command : 3f 14 02 cc.....cc; sending 0x00 instead of 0xcc doesnt make any difference */
 	timeout = 0;
@@ -248,7 +264,7 @@ static int si4713_start_usb(struct si4713_device *radio)
 	/* sending command : 3f 08 90 fa.....00 */
 	timeout = 0;
 	radio->buffer[0] = 0x3f;
-	radio->buffer[1] = 0x09;
+	radio->buffer[1] = 0x08;
 	radio->buffer[2] = 0x90;
 	radio->buffer[3] = 0xfa;
 	for(i = 4; i < 64; i++) { radio->buffer[i] = 0x00; }
@@ -290,7 +306,8 @@ static int si4713_start_usb(struct si4713_device *radio)
  		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
  						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 		timeout += 1;
- 	} while((radio->buffer[1] && radio->buffer[2] != 0x80) && timeout < 50); 
+		msleep(SLEEP);
+ 	} while((radio->buffer[1] && radio->buffer[2] != 0x80) && timeout < TIMEOUT); 
 	
 	/* sending command : 3f 12 00.....00 */
 	timeout = 0;
@@ -306,7 +323,9 @@ static int si4713_start_usb(struct si4713_device *radio)
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 		timeout += 1;
-	} while((radio->buffer[1] && radio->buffer[2] != 0x80) && timeout < 50);
+		msleep(SLEEP);
+	} while((radio->buffer[1] && radio->buffer[2] != 0x80 && radio->buffer[9] != 0x08) && timeout < TIMEOUT);
+	}
 	
 	/* Commands that are sent after pressing the 'Initialize' button in the windows application */
 	
@@ -321,7 +340,7 @@ static int si4713_start_usb(struct si4713_device *radio)
 	timeout = 0;
 	radio->buffer[0] = 0x3f;
 	radio->buffer[1] = 0x01;
-	for(i = 3; i < 64; i++) { radio->buffer[i] = 0x00; }
+	for(i = 2; i < 64; i++) { radio->buffer[i] = 0x00; }
 	retval = si4713_send_startup_command(radio);
 	
 	/* sending command : 3f 09 90 00.....00 */
@@ -335,7 +354,7 @@ static int si4713_start_usb(struct si4713_device *radio)
 	/* sending command : 3f 08 90 fa.....00 */
 	timeout = 0;
 	radio->buffer[0] = 0x3f;
-	radio->buffer[1] = 0x09;
+	radio->buffer[1] = 0x08;
 	radio->buffer[2] = 0x90;
 	radio->buffer[3] = 0xfa;
 	for(i = 4; i < 64; i++) { radio->buffer[i] = 0x00; }
@@ -421,7 +440,17 @@ static int si4713_start_usb(struct si4713_device *radio)
 	radio->buffer[5] = 0x01;
 	radio->buffer[6] = 0x0f;
 	for(i = 7; i < 64; i++) { radio->buffer[i] = 0x00; }
-	retval = si4713_send_startup_command(radio);
+	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
+					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+	if (retval < 0)
+		return retval;   
+	do {
+		/* receive the response */
+		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
+						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+		timeout += 1;
+		msleep(SLEEP);
+	} while((radio->buffer[1] && radio->buffer[2] != 0x80 && radio->buffer[9] != 0x08) && timeout < TIMEOUT);
  	
 	return retval;
 }
@@ -444,6 +473,7 @@ static int send_command(struct si4713_device *radio)
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 		timeout += 1;
+		msleep(SLEEP);
 	} while(radio->buffer[2] != 0x80 && timeout < 100);
 	
 	return retval;
