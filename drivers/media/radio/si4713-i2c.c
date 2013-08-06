@@ -215,8 +215,6 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 	struct i2c_client *client = v4l2_get_subdevdata(&sdev->sd);
 	u8 data1[MAX_ARGS + 1];
 	int err;
-	int i;
-	
 	unsigned long until_jiffies = usecs_to_jiffies(usecs) + 1;
 
 	if (!client->adapter)
@@ -243,24 +241,6 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 				__func__);*/
 	while(jiffies < until_jiffies)
 		msleep(1);
-
-	/* Then get the response */
-// 	while (true) {
-// 		err = i2c_master_recv(client, response, respn);
-// 		printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
-// 		if (err != respn) {
-// 			v4l2_err(&sdev->sd,
-// 					"Error while reading response for command 0x%02x\n",
-// 					command);
-// 			return (err > 0) ? -EIO : err;
-// 		}
-// 
-// 		DBG_BUFFER(&sdev->sd, "Response", response, respn);
-// 		for (i = 0; i < respn; i++) { printk(KERN_INFO "response[%d] = %d", i, response[i]); }
-// 		if (check_command_failed(response[0]) && jiffies > until_jiffies)
-// 			return -EBUSY;
-// 		msleep(HZ/100); // sleep for 1 jiffy
-// 	}
 
 	err = i2c_master_recv(client, response, respn);
 	printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
@@ -369,9 +349,7 @@ static int si4713_write_property(struct si4713_device *sdev, u16 prop, u16 val)
 static int si4713_powerup(struct si4713_device *sdev)
 {
 	int err;
-	//u8 resp[SI4713_PWUP_NRESP];
-	u8 resp[64];
-	int i;
+	u8 resp[SI4713_PWUP_NRESP];
 	/*
 	 * 	.First byte = Enabled interrupts and boot function
 	 * 	.Second byte = Input operation mode
@@ -399,13 +377,9 @@ static int si4713_powerup(struct si4713_device *sdev)
 		gpio_set_value(sdev->gpio_reset, 1);
 	}
 
-	//err = si4713_send_command(sdev, SI4713_CMD_POWER_UP,
-	//				args, ARRAY_SIZE(args),
-	//				resp, ARRAY_SIZE(resp),
-	//				TIMEOUT_POWER_UP);
 	err = si4713_send_command(sdev, SI4713_CMD_POWER_UP,
 					args, ARRAY_SIZE(args),
-					resp, 64,
+					resp, ARRAY_SIZE(resp),
 					TIMEOUT_POWER_UP);
 	printk(KERN_INFO "%s : si4713_send_command returned %d \n" , __func__, err);
 	v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
@@ -486,7 +460,7 @@ static int si4713_checkrev(struct si4713_device *sdev)
 	if (rval < 0)
 		return rval;
 
-	if (resp[1] == SI4713_PRODUCT_NUMBER) {
+	if (resp[1] == SI4713_PRODUCT_NUMBER) { 
 		v4l2_info(&sdev->sd, "chip found @ 0x%02x (%s)\n",
 				client->addr << 1, client->adapter->name);
 	} else {
@@ -1056,19 +1030,18 @@ static int si4713_initialize(struct si4713_device *sdev)
 	if (rval < 0)
 		return rval;
 
-	/*rval = si4713_checkrev(sdev);
+	rval = si4713_checkrev(sdev);
 	printk(KERN_INFO "%s : si4713_checkrev returned %d\n ", __func__, rval);
 	if (rval < 0)
 		return rval;
 
-	rval = si4713_set_power_state(sdev, POWER_OFF);
+	/*rval = si4713_set_power_state(sdev, POWER_OFF);
 	if (rval < 0)
-		return rval;
-
+		return rval;*/
 
 	sdev->frequency = DEFAULT_FREQUENCY;
 	sdev->stereo = 1;
-	sdev->tune_rnl = DEFAULT_TUNE_RNL;*/
+	sdev->tune_rnl = DEFAULT_TUNE_RNL;
 	return 0;
 }
 

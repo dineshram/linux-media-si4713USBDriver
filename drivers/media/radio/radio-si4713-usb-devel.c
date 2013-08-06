@@ -60,7 +60,7 @@ MODULE_LICENSE("GPL v2");
 #define SI4713_CMD_TX_TUNE_STATUS	0x33
 #define SI4713_CMD_TX_ASQ_STATUS	0x34
 
-#define SLEEP	50
+#define SLEEP	3
 #define TIMEOUT	50
 
 /* USB Device ID List */
@@ -189,15 +189,37 @@ static int si4713_send_startup_command(struct si4713_device *radio)
 	
 	return retval;
 }
+/*
+static const struct si4713_start_seq(struct si4713_device *radio, u8 *payload, len)
+{
+	radio->buffer[0] = 0x3f;
+	memcpy(radio->buffer + 1, p, len);
+	memset(radio->buffer + len + 1, 0);
+}
+
+static struct si4713_start_seq_table {
+	int len;
+	u8  payload[8];
+};
+
+static const struct si4713_start_seq_table si4713_start_seq_table[] = {
+	{1, {0x03}},
+	{2, {0x32, 0x7f}},
+	
+	{ }
+} 
+*/
 
 static int si4713_start_usb(struct si4713_device *radio)
 {
 	int retval;
-	int i, j;
+	int i;
 	int timeout = 0;
+	
+	//int len;
+	//u8 payload[8];
 	/* TODO : Change this implementation !! */
 	
-	for(j = 0; j < 2; j++){
 	/* sending command : 3f 03 00 00.....00 */
 	radio->buffer[0] = 0x3f;
 	radio->buffer[1] = 0x03;
@@ -243,7 +265,6 @@ static int si4713_start_usb(struct si4713_device *radio)
 		timeout += 1;
 		msleep(SLEEP);
  	} while((radio->buffer[1] && radio->buffer[2] != 0x80 && radio->buffer[9] != 0x08) && timeout < TIMEOUT); 
- 	//retval = si4713_send_startup_command(radio);
 	
 	/* sending command : 3f 14 02 cc.....cc; sending 0x00 instead of 0xcc doesnt make any difference */
 	timeout = 0;
@@ -269,7 +290,6 @@ static int si4713_start_usb(struct si4713_device *radio)
 	radio->buffer[3] = 0xfa;
 	for(i = 4; i < 64; i++) { radio->buffer[i] = 0x00; }
 	retval = si4713_send_startup_command(radio);
-	// maybe have to check for response 3f 00 90 fa
 	
 	/* sending command : 3f 36 01 cc.....cc */
 	timeout = 0;
@@ -325,7 +345,6 @@ static int si4713_start_usb(struct si4713_device *radio)
 		timeout += 1;
 		msleep(SLEEP);
 	} while((radio->buffer[1] && radio->buffer[2] != 0x80 && radio->buffer[9] != 0x08) && timeout < TIMEOUT);
-	}
 	
 	/* Commands that are sent after pressing the 'Initialize' button in the windows application */
 	
@@ -474,7 +493,7 @@ static int send_command(struct si4713_device *radio)
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 		timeout += 1;
 		msleep(SLEEP);
-	} while(radio->buffer[2] != 0x80 && timeout < 100);
+	} while(radio->buffer[2] != 0x80 && timeout < TIMEOUT);
 	
 	return retval;
 }
@@ -509,7 +528,6 @@ static int si4713_getrev(struct si4713_device *radio, char *data, int len)
 	radio->buffer[4] = 0x10;
 	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
 	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
-	for (i = 0; i < 10; i++) { printk(KERN_INFO "%d ", radio->buffer[i]); }
 	
 	retval = send_command(radio);
 	return retval;
@@ -523,28 +541,13 @@ static int si4713_getrev(struct si4713_device *radio, char *data, int len)
 static int si4713_i2c_read(struct si4713_device *radio, char *data, int len)
 {
 	int retval;
-	int i;
 	
-	/*printk(KERN_INFO "%s : called with : len = %d and command = %d\n ", __func__, len, data[0]);
-	for (i = 0; i < len; i++) { printk(KERN_INFO "%d ", data[i]); }
-	printk(KERN_INFO "\n%s : printing radio->buffer contents\n", __func__);
-	for (i = 0; i < 12; i++) { printk(KERN_INFO "%d ", radio->buffer[i]); }
-	
-	if ((len > BUFFER_LENGTH))
-		return -EINVAL;
-	
-	printk(KERN_INFO "\n%s : calling usb_control_msg\n", __func__);
-	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
-					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT); //0x21, 0xa1, 0x22, 0x02c6; reqtype = 1, 9
-	if (retval < 0)
-		return retval; */
 	/* receive the response */
 	retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 					0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 
 	if (retval == BUFFER_LENGTH) {
-		for(i = 0; i < len; i++) { data[i] = radio->buffer[i]; }
-		memcpy(data, radio->buffer, len);
+		memcpy(data, radio->buffer + 2, len);
 		retval = 0;
 	} else if (retval >= 0)
 		retval = -EIO;
@@ -560,7 +563,7 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 	if (len > BUFFER_LENGTH)
 		return -EINVAL;
 	
-	printk(KERN_INFO "%s :called with : len = %d and command = %d\n ", __func__, len, data[0]);
+	printk(KERN_INFO "%s :called with : len = %d and command = 0x%02x \n", __func__, len, data[0]);
 	printk(KERN_INFO "%s : printing data buffer contents\n", __func__);
 	for (i = 0; i < len; i++) { printk(KERN_INFO "0x%02x ", data[i]); }
 	printk(KERN_INFO "\n");
