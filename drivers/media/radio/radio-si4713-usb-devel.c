@@ -281,10 +281,34 @@ static struct i2c_board_info si4713_board_info __initdata_or_module = {
 	I2C_BOARD_INFO("si4713", SI4713_I2C_ADDR_BUSEN_HIGH),
 };
 
-static int send_command(struct si4713_device *radio)
+struct si4713_command_table {
+	int pref;
+	u8 payload[8];
+};
+/* Structure of a command :
+ * 	Byte 1 : 0x3f
+ * 	Byte 2 : 0x06 (send a command)
+ * 	Byte 3 : Unknown 
+ * 	Byte 4 : Number of arguments + 1 (for the command byte)
+ * 	Byte 5 : Number of response bytes
+ */
+struct si4713_command_table command_table[] = {
+	
+	{5, {0x3f, 0x06, 0x00, 0x03, 0x01}}, /* POWER_UP */ 
+	{5, {0x3f, 0x06, 0x03, 0x01, 0x10}}, /* GET_REV */
+	{5, {0x3f, 0x06, 0x00, 0x01, 0x01}}, /* POWER_DOWN */ 
+	{5, {0x3f, 0x06, 0x00, 0x06, 0x01}}, /* SET_PROPERTY */
+	{5, {0x3f, 0x06, 0x00, 0x04, 0x04}}, /* GET_PROPERTY */
+};
+
+//static int send_command(struct si4713_device *radio)
+static int send_command(struct si4713_device *radio, int pref, u8 *payload, char *data, int len)
 {
 	int retval;
 	int timeout = 0;
+	memcpy(radio->buffer, payload, pref);
+	memcpy(radio->buffer + pref, data, len);
+	memset(radio->buffer + pref + len, 0, 64-pref-len);
 	/* send the command */
 	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
 					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
@@ -301,57 +325,22 @@ static int send_command(struct si4713_device *radio)
 	return retval;
 }
 
-static int si4713_powerup(struct si4713_device *radio, char *data, int len)
-{
-	int retval;
-	int i = 0;
-	printk(KERN_INFO "in method %s \n", __func__);
-	radio->buffer[0] = 0x3f;
-	radio->buffer[1] = 0x06;
-	radio->buffer[2] = 0x00;
-	radio->buffer[3] = 0x03;
-	radio->buffer[4] = 0x01;
-	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
-	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
-	
-	retval = send_command(radio);
-	
-	return retval;
-}
-
-static int si4713_getrev(struct si4713_device *radio, char *data, int len)
-{
-	int retval;
-	int i = 0;
-	printk(KERN_INFO "in method %s \n", __func__);
-	radio->buffer[0] = 0x3f;
-	radio->buffer[1] = 0x06;
-	radio->buffer[2] = 0x03;
-	radio->buffer[3] = 0x01;
-	radio->buffer[4] = 0x10;
-	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
-	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
-	
-	retval = send_command(radio);
-	return retval;
-}
-
-static int si4713_getproperty(struct si4713_device *radio, char *data, int len)
-{
-	int retval;
-	int i = 0;
-	printk(KERN_INFO "in method %s \n", __func__);
-	radio->buffer[0] = 0x3f;
-	radio->buffer[1] = 0x06;
-	radio->buffer[2] = 0x00;
-	radio->buffer[3] = 0x04;
-	radio->buffer[4] = 0x04;
-	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
-	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
-	
-	retval = send_command(radio);
-	return retval;
-}
+// static int si4713_getproperty(struct si4713_device *radio, char *data, int len)
+// {
+// 	int retval;
+// 	int i = 0;
+// 	printk(KERN_INFO "in method %s \n", __func__);
+// 	radio->buffer[0] = 0x3f;
+// 	radio->buffer[1] = 0x06;
+// 	radio->buffer[2] = 0x00;
+// 	radio->buffer[3] = 0x04;
+// 	radio->buffer[4] = 0x04;
+// 	for (i = 0; i < len; i++) { radio->buffer[i+5] = data[i]; }
+// 	for (i = len+5; i < 64; i++) { radio->buffer[i] = 0x00; } 
+// 	
+// 	retval = send_command(radio);
+// 	return retval;
+// }
 
 /* usb_control_msg -- Send a control message to a device
  * int usb_control_msg (struct usb_device * dev, unsigned int pipe, __u8 request,
@@ -389,19 +378,17 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 	
 	switch(data[0]){
 		case SI4713_CMD_POWER_UP:
-			retval = si4713_powerup(radio, data, len);
+			retval = send_command(radio,command_table[0].pref, command_table[0].payload, data, len);
 			break;
-		case SI4713_CMD_GET_REV:
-			retval = si4713_getrev(radio, data, len);
+			retval = send_command(radio, command_table[1].pref, command_table[1].payload, data, len);
 			break;
 		case SI4713_CMD_POWER_DOWN:
-			
+			retval = send_command(radio,command_table[2].pref, command_table[2].payload, data, len);
 			break;
 		case SI4713_CMD_SET_PROPERTY:
 			
 			break;
 		case SI4713_CMD_GET_PROPERTY:
-			retval = si4713_getproperty(radio, data, len);
 			break;
 		case SI4713_CMD_TX_TUNE_FREQ:
 			
