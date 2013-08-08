@@ -379,9 +379,7 @@ static int si4713_powerup(struct si4713_device *sdev)
 					args, ARRAY_SIZE(args),
 					resp, ARRAY_SIZE(resp),
 					TIMEOUT_POWER_UP);
-	v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
-				resp[0]);
-
+	
 	if (!err) {
 		v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
 				resp[0]);
