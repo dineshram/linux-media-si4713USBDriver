@@ -58,9 +58,12 @@ MODULE_LICENSE("GPL v2");
 #define SI4713_CMD_TX_TUNE_MEASURE	0x32
 #define SI4713_CMD_TX_TUNE_STATUS	0x33
 #define SI4713_CMD_TX_ASQ_STATUS	0x34
+#define SI4713_CMD_GET_INT_STATUS	0x14
+#define SI4713_CMD_TX_RDS_BUFF		0x35
+#define SI4713_CMD_TX_RDS_PS		0x36
 
 #define SLEEP	3
-#define TIMEOUT	50
+#define TIMEOUT	20
 
 /* USB Device ID List */
 static struct usb_device_id usb_si4713_device_table[] = {
@@ -77,12 +80,9 @@ struct si4713_device {
 	struct video_device 	vdev;		/* the v4l device for this device */
 	struct v4l2_device 	v4l2_dev;
 	struct v4l2_subdev	*v4l2_subdev;
-	
 	struct mutex 		i2c_lock;
-	
 	struct i2c_adapter 	i2c_adapter;	/* I2C adapter */
 	struct mutex		i2c_mutex;	/* I2C lock */
-
 	u8 			*buffer;
 };
 
@@ -90,7 +90,6 @@ static inline struct si4713_device *to_si4713_dev(struct v4l2_device *v4l2_dev)
 {
 	return container_of(v4l2_dev, struct si4713_device, v4l2_dev);
 }
-
 
 static int vidioc_querycap(struct file *file, void *priv,
 					struct v4l2_capability *v)
@@ -298,6 +297,15 @@ struct si4713_command_table command_table[] = {
 	{5, {0x3f, 0x06, 0x00, 0x01, 0x01}}, /* POWER_DOWN */ 
 	{5, {0x3f, 0x06, 0x00, 0x06, 0x01}}, /* SET_PROPERTY */
 	{5, {0x3f, 0x06, 0x00, 0x04, 0x04}}, /* GET_PROPERTY */
+	{5, {0x3f, 0x06, 0x03, 0x04, 0x01}}, /* TX_TUNE_FREQ */
+	{5, {0x3f, 0x06, 0x03, 0x05, 0x01}}, /* TX_TUNE_POWER */
+	{5, {0x3f, 0x06, 0x03, 0x05, 0x01}}, /* TX_TUNE_MEASURE */ /* TODO : Check byte 3 */
+	{5, {0x3f, 0x06, 0x00, 0x02, 0x08}}, /* TX_TUNE_STATUS */
+	{5, {0x3f, 0x06, 0x03, 0x02, 0x05}}, /* TX_ASQ_STATUS */
+	{5, {0x3f, 0x06, 0x03, 0x01, 0x01}}, /* GET_INT_STATUS */
+	{5, {0x3f, 0x06, 0x03, 0x06, 0x08}}, /* TX_RDS_BUFF */ /* TODO : Check byte 3 */
+	{5, {0x3f, 0x06, 0x00, 0x06, 0x01}}, /* TX_RDS_PS */
+	
 };
 
 static int send_command(struct si4713_device *radio, int pref, u8 *payload, char *data, int len)
@@ -318,7 +326,7 @@ static int send_command(struct si4713_device *radio, int pref, u8 *payload, char
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
 		timeout += 1;
 		msleep(SLEEP);
-	} while(radio->buffer[2] != 0x80 && timeout < TIMEOUT);
+	} while((radio->buffer[2] != 0x80 || radio->buffer[2] != 0x81) && timeout < TIMEOUT);
 	
 	return retval;
 }
@@ -363,26 +371,35 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 			retval = send_command(radio,command_table[2].pref, command_table[2].payload, data, len);
 			break;
 		case SI4713_CMD_SET_PROPERTY:
-			
+			retval = send_command(radio,command_table[3].pref, command_table[3].payload, data, len);
 			break;
 		case SI4713_CMD_GET_PROPERTY:
-			
+			retval = send_command(radio,command_table[4].pref, command_table[4].payload, data, len);
 			break;
 		case SI4713_CMD_TX_TUNE_FREQ:
-			
+			retval = send_command(radio,command_table[5].pref, command_table[5].payload, data, len);
 			break;
 		case SI4713_CMD_TX_TUNE_POWER:
-			
+			retval = send_command(radio,command_table[6].pref, command_table[6].payload, data, len);
 			break;
 		case SI4713_CMD_TX_TUNE_MEASURE:
-			
+			retval = send_command(radio,command_table[7].pref, command_table[7].payload, data, len);
 			break;
 		case SI4713_CMD_TX_TUNE_STATUS:
-			
+			retval = send_command(radio,command_table[8].pref, command_table[8].payload, data, len);
 			break;
 		case SI4713_CMD_TX_ASQ_STATUS:
-			
+			retval = send_command(radio,command_table[9].pref, command_table[9].payload, data, len);
 			break;	
+		case SI4713_CMD_GET_INT_STATUS:
+			retval = send_command(radio,command_table[10].pref, command_table[10].payload, data, len);
+			break;
+		case SI4713_CMD_TX_RDS_BUFF:
+			retval = send_command(radio,command_table[11].pref, command_table[11].payload, data, len);
+			break;
+		case SI4713_CMD_TX_RDS_PS:
+			retval = send_command(radio,command_table[12].pref, command_table[12].payload, data, len);
+			break;
 	}
 				
 	return retval < 0 ? retval : 0;

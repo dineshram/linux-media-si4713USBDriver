@@ -226,7 +226,6 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 	DBG_BUFFER(&sdev->sd, "Parameters", data1, argn + 1);
 
 	err = i2c_master_send(client, data1, argn + 1);
-	printk(KERN_INFO "%s : i2c_master_send returned %d\n", __func__, err);
 	if (err != argn + 1) {
 		v4l2_err(&sdev->sd, "Error while sending command 0x%02x\n",
 			command);
@@ -243,7 +242,6 @@ static int si4713_send_command(struct si4713_device *sdev, const u8 command,
 		msleep(1);
 
 	err = i2c_master_recv(client, response, respn);
-	printk(KERN_INFO "%s : i2c_master_recv returned %d\n", __func__, err);
 	if (err != respn) {
 		v4l2_err(&sdev->sd,
 				"Error while reading response for command 0x%02x\n",
@@ -381,7 +379,6 @@ static int si4713_powerup(struct si4713_device *sdev)
 					args, ARRAY_SIZE(args),
 					resp, ARRAY_SIZE(resp),
 					TIMEOUT_POWER_UP);
-	printk(KERN_INFO "%s : si4713_send_command returned %d \n" , __func__, err);
 	v4l2_dbg(1, debug, &sdev->sd, "Powerup response: 0x%02x\n",
 				resp[0]);
 
@@ -449,8 +446,6 @@ static int si4713_checkrev(struct si4713_device *sdev)
 	struct i2c_client *client = v4l2_get_subdevdata(&sdev->sd);
 	int rval;
 	u8 resp[SI4713_GETREV_NRESP];
-	
-	printk(KERN_INFO "%s method called\n", __func__);
 
 	rval = si4713_send_command(sdev, SI4713_CMD_GET_REV,
 					NULL, 0,
@@ -1026,12 +1021,10 @@ static int si4713_initialize(struct si4713_device *sdev)
 	int rval;
 
 	rval = si4713_set_power_state(sdev, POWER_ON);
-	printk(KERN_INFO "%s : si4713_set_power_state returned %d\n ", __func__, rval);
 	if (rval < 0)
 		return rval;
 
 	rval = si4713_checkrev(sdev);
-	printk(KERN_INFO "%s : si4713_checkrev returned %d\n ", __func__, rval);
 	if (rval < 0)
 		return rval;
 
