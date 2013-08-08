@@ -1025,19 +1025,19 @@ static int si4713_initialize(struct si4713_device *sdev)
 {
 	int rval;
 
-	rval = si4713_set_power_state(sdev, POWER_ON);
-	printk(KERN_INFO "%s : si4713_set_power_state returned %d\n ", __func__, rval);
-	if (rval < 0)
-		return rval;
-
-	rval = si4713_checkrev(sdev);
-	printk(KERN_INFO "%s : si4713_checkrev returned %d\n ", __func__, rval);
-	if (rval < 0)
-		return rval;
-
-	/*rval = si4713_set_power_state(sdev, POWER_OFF);
-	if (rval < 0)
-		return rval;*/
+// 	rval = si4713_set_power_state(sdev, POWER_ON);
+// 	printk(KERN_INFO "%s : si4713_set_power_state returned %d\n ", __func__, rval);
+// 	if (rval < 0)
+// 		return rval;
+// 
+// 	rval = si4713_checkrev(sdev);
+// 	printk(KERN_INFO "%s : si4713_checkrev returned %d\n ", __func__, rval);
+// 	if (rval < 0)
+// 		return rval;
+// 
+// 	rval = si4713_set_power_state(sdev, POWER_OFF);
+// 	if (rval < 0)
+// 		return rval;
 
 	sdev->frequency = DEFAULT_FREQUENCY;
 	sdev->stereo = 1;
