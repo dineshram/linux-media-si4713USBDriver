@@ -356,6 +356,7 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 		case SI4713_CMD_POWER_UP:
 			retval = send_command(radio,command_table[0].pref, command_table[0].payload, data, len);
 			break;
+		case SI4713_CMD_GET_REV:
 			retval = send_command(radio, command_table[1].pref, command_table[1].payload, data, len);
 			break;
 		case SI4713_CMD_POWER_DOWN:
@@ -561,7 +562,6 @@ static struct usb_driver usb_si4713_driver = {
 	.disconnect		= usb_si4713_disconnect,
 	.id_table		= usb_si4713_device_table,
 };
-
 
 static int __init si4713_init(void)
 {
