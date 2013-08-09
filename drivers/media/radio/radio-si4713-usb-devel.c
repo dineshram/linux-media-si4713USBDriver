@@ -30,7 +30,7 @@
 #include <media/v4l2-common.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
-#include <media/radio-si4713.h>
+#include <media/v4l2-event.h>
 
 #include "si4713-i2c.h"
 
@@ -127,11 +127,14 @@ static int vidioc_g_frequency(struct file *file, void *priv,
 }
 
 static const struct v4l2_ioctl_ops usb_si4713_ioctl_ops = {
-	.vidioc_querycap    = vidioc_querycap,
-	.vidioc_g_modulator = vidioc_g_modulator,
-	.vidioc_s_modulator = vidioc_s_modulator,
-	.vidioc_g_frequency = vidioc_g_frequency,
-	.vidioc_s_frequency = vidioc_s_frequency,
+	.vidioc_querycap    	  = vidioc_querycap,
+	.vidioc_g_modulator 	  = vidioc_g_modulator,
+	.vidioc_s_modulator 	  = vidioc_s_modulator,
+	.vidioc_g_frequency 	  = vidioc_g_frequency,
+	.vidioc_s_frequency 	  = vidioc_s_frequency,
+	.vidioc_log_status    	  = v4l2_ctrl_log_status,
+        .vidioc_subscribe_event   = v4l2_ctrl_subscribe_event,
+        .vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
 /* File system interface */
@@ -139,6 +142,7 @@ static const struct v4l2_file_operations usb_si4713_fops = {
 	.owner		= THIS_MODULE,
 	.open           = v4l2_fh_open,
 	.release        = v4l2_fh_release,
+	.poll           = v4l2_ctrl_poll,
 	.unlocked_ioctl	= video_ioctl2,
 };
 
