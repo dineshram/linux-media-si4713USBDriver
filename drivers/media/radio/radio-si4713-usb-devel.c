@@ -1,19 +1,18 @@
 /*
- * Copyright (c) 2013 Dinesh Ram<dinram@cisco.com> & Hans Verkuil<hansverk@cisco.com>
- *
- * This program is free software; you can redistribute it and/or modify
+ * Copyright 2013 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
+ * 
+ * This program is free software; you may redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * the Free Software Foundation; version 2 of the License.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+ * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 /* kernel includes */
@@ -25,6 +24,7 @@
 #include <linux/input.h>
 #include <linux/mutex.h>
 #include <linux/i2c.h>
+#include <linux/regulator/consumer.h>
 /* V4l includes */
 #include <linux/videodev2.h>
 #include <media/v4l2-common.h>
@@ -32,13 +32,10 @@
 #include <media/v4l2-ioctl.h>
 #include <media/radio-si4713.h>
 
-/* module parameters */
-static int debug;
-module_param(debug, int, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(debug, "Debug level (0 - 2)");
+#include "si4713-i2c.h"
 
 /* driver and module definitions */
-MODULE_AUTHOR("Dinesh Ram <dinram@cisco.com> and Hans Verkuil <hansverk@cisco.com>");
+MODULE_AUTHOR("Dinesh Ram <dinram@cisco.com>");
 MODULE_DESCRIPTION("Si4713 FM Transmitter USB driver");
 MODULE_LICENSE("GPL v2");
 
@@ -53,53 +50,39 @@ MODULE_LICENSE("GPL v2");
 #define SI4713_I2C_ADDR_BUSEN_HIGH      0x63
 #define SI4713_I2C_ADDR_BUSEN_LOW       0x11
 
-#define SI4713_CMD_POWER_UP		0x01
-#define SI4713_CMD_GET_REV		0x10
-#define SI4713_CMD_POWER_DOWN		0x11
-#define	SI4713_CMD_SET_PROPERTY		0x12
-#define SI4713_CMD_GET_PROPERTY		0x13
-#define SI4713_CMD_TX_TUNE_FREQ		0x30
-#define SI4713_CMD_TX_TUNE_POWER	0x31
-#define SI4713_CMD_TX_TUNE_MEASURE	0x32
-#define SI4713_CMD_TX_TUNE_STATUS	0x33
-#define SI4713_CMD_TX_ASQ_STATUS	0x34
-#define SI4713_CMD_GET_INT_STATUS	0x14
-#define SI4713_CMD_TX_RDS_BUFF		0x35
-#define SI4713_CMD_TX_RDS_PS		0x36
-
 #define SLEEP				3
 #define TIMEOUT				15
 
 /* USB Device ID List */
-static struct usb_device_id usb_si4713_device_table[] = {
+static struct usb_device_id usb_si4713_usb_device_table[] = {
 	{USB_DEVICE_AND_INTERFACE_INFO(USB_SI4713_VENDOR, USB_SI4713_PRODUCT,
 							USB_CLASS_HID, 0, 0) },
 	{ }						/* Terminating entry */
 };
 
-MODULE_DEVICE_TABLE(usb, usb_si4713_device_table);
+MODULE_DEVICE_TABLE(usb, usb_si4713_usb_device_table);
 
-struct si4713_device {
+struct si4713_usb_device {
 	struct usb_device 	*usbdev;	/* the usb device for this device */
 	struct usb_interface 	*intf;
 	struct video_device 	vdev;		/* the v4l device for this device */
 	struct v4l2_device 	v4l2_dev;
 	struct v4l2_subdev	*v4l2_subdev;
-	struct mutex 		i2c_lock;
+	struct mutex 		lock;
 	struct i2c_adapter 	i2c_adapter;	/* I2C adapter */
 	struct mutex		i2c_mutex;	/* I2C lock */
 	u8 			*buffer;
 };
 
-static inline struct si4713_device *to_si4713_dev(struct v4l2_device *v4l2_dev)
+static inline struct si4713_usb_device *to_si4713_dev(struct v4l2_device *v4l2_dev)
 {
-	return container_of(v4l2_dev, struct si4713_device, v4l2_dev);
+	return container_of(v4l2_dev, struct si4713_usb_device, v4l2_dev);
 }
 
 static int vidioc_querycap(struct file *file, void *priv,
 					struct v4l2_capability *v)
 {
-	struct si4713_device *radio = video_drvdata(file);
+	struct si4713_usb_device *radio = video_drvdata(file);
 
 	strlcpy(v->driver, "radio-si4713-usb", sizeof(v->driver));
 	strlcpy(v->card, "Si4713 FM Transmitter", sizeof(v->card));
@@ -112,7 +95,7 @@ static int vidioc_querycap(struct file *file, void *priv,
 
 static inline struct v4l2_device *get_v4l2_dev(struct file *file)
 {
-	return &((struct si4713_device *)video_drvdata(file))->v4l2_dev;
+	return &((struct si4713_usb_device *)video_drvdata(file))->v4l2_dev;
 }
 
 static int vidioc_g_modulator(struct file *file, void *priv,
@@ -161,7 +144,7 @@ static const struct v4l2_file_operations usb_si4713_fops = {
 
 static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
 {
-	struct si4713_device *radio = to_si4713_dev(v4l2_dev);
+	struct si4713_usb_device *radio = to_si4713_dev(v4l2_dev);
 	struct i2c_adapter *adapter = &radio->i2c_adapter;
 
 	/* free rest memory */
@@ -171,7 +154,7 @@ static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
 	kfree(radio);
 }
 
-static int si4713_send_startup_command(struct si4713_device *radio)
+static int si4713_send_startup_command(struct si4713_usb_device *radio)
 {
 	/* TODO : Implement proper timeout */
 	int retval;
@@ -263,7 +246,7 @@ struct si4713_start_seq_table start_seq[] = {
 	{7, {0x3f, 0x06, 0x03, 0x03, 0x08, 0x01, 0x0f}},
 };
 
-static int si4713_start_seq(struct si4713_device *radio)
+static int si4713_start_seq(struct si4713_usb_device *radio)
 {
 	int i;
 	int retval = 0;
@@ -311,7 +294,7 @@ struct si4713_command_table command_table[] = {
 	
 };
 
-static int send_command(struct si4713_device *radio, int pref, u8 *payload, char *data, int len)
+static int send_command(struct si4713_usb_device *radio, int pref, u8 *payload, char *data, int len)
 {
 	int retval;
 	int timeout = 0;
@@ -334,7 +317,7 @@ static int send_command(struct si4713_device *radio, int pref, u8 *payload, char
 	return retval;
 }
 
-static int si4713_i2c_read(struct si4713_device *radio, char *data, int len)
+static int si4713_i2c_read(struct si4713_usb_device *radio, char *data, int len)
 {
 	int retval;
 	
@@ -350,7 +333,7 @@ static int si4713_i2c_read(struct si4713_device *radio, char *data, int len)
 	return retval < 0 ? retval : 0;
 }
 
-static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
+static int si4713_i2c_write(struct si4713_usb_device *radio, char *data, int len)
 {
 	int retval;
 	
@@ -404,7 +387,7 @@ static int si4713_i2c_write(struct si4713_device *radio, char *data, int len)
 
 static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs, int num)
 {
-	struct si4713_device *radio = i2c_get_adapdata(i2c_adapter);
+	struct si4713_usb_device *radio = i2c_get_adapdata(i2c_adapter);
 	int retval = -EINVAL;
 	int i;
 	
@@ -443,7 +426,7 @@ static struct i2c_adapter si4713_i2c_adapter_template = {
 	.algo   = &si4713_algo,
 };
 
-int si4713_register_i2c_adapter(struct si4713_device *radio)
+int si4713_register_i2c_adapter(struct si4713_usb_device *radio)
 {
 	int retval = -ENOMEM;
 
@@ -459,7 +442,7 @@ int si4713_register_i2c_adapter(struct si4713_device *radio)
 static int usb_si4713_probe(struct usb_interface *intf,
 				const struct usb_device_id *id) 
 {	
-	struct si4713_device *radio;
+	struct si4713_usb_device *radio;
 	struct i2c_adapter *adapter;
 	struct v4l2_subdev *sd;
 	int retval = -ENOMEM;
@@ -472,17 +455,17 @@ static int usb_si4713_probe(struct usb_interface *intf,
 			iface_desc->desc.bInterfaceClass);
 	
 	/* Initialize local device structure */
-	radio = kzalloc(sizeof(struct si4713_device), GFP_KERNEL);
+	radio = kzalloc(sizeof(struct si4713_usb_device), GFP_KERNEL);
 	if (radio)
 		radio->buffer = kmalloc(BUFFER_LENGTH, GFP_KERNEL);
 
 	if (!radio || !radio->buffer) {
-		dev_err(&intf->dev, "kmalloc for si4713_device failed\n");
+		dev_err(&intf->dev, "kmalloc for si4713_usb_device failed\n");
 		kfree(radio);
 		return -ENOMEM;
 	}
 	
-	mutex_init(&radio->i2c_lock);
+	mutex_init(&radio->lock);
 	mutex_init(&radio->i2c_mutex);
 	
 	radio->usbdev = interface_to_usbdev(intf);
@@ -522,7 +505,7 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	radio->vdev.v4l2_dev = &radio->v4l2_dev;
 	radio->vdev.fops = &usb_si4713_fops;
 	radio->vdev.ioctl_ops = &usb_si4713_ioctl_ops;
-	radio->vdev.lock = &radio->i2c_lock;
+	radio->vdev.lock = &radio->lock;
 	radio->vdev.release = video_device_release_empty;
 	radio->vdev.vfl_dir = VFL_DIR_TX;
 
@@ -552,14 +535,14 @@ err_v4l2:
 
 static void usb_si4713_disconnect(struct usb_interface *intf)
 {	
-	struct si4713_device *radio = to_si4713_dev(usb_get_intfdata(intf));
+	struct si4713_usb_device *radio = to_si4713_dev(usb_get_intfdata(intf));
 	printk(KERN_INFO "Si4713 development board i/f %d now disconnected\n",
 		intf->cur_altsetting->desc.bInterfaceNumber);
-	mutex_lock(&radio->i2c_lock);
+	mutex_lock(&radio->lock);
 	usb_set_intfdata(intf, NULL);
 	video_unregister_device(&radio->vdev);
 	v4l2_device_disconnect(&radio->v4l2_dev);
-	mutex_unlock(&radio->i2c_lock);
+	mutex_unlock(&radio->lock);
 	v4l2_device_put(&radio->v4l2_dev);
 }
 
@@ -568,7 +551,7 @@ static struct usb_driver usb_si4713_driver = {
 	.name			= "radio-si4713-usb",
 	.probe			= usb_si4713_probe,
 	.disconnect		= usb_si4713_disconnect,
-	.id_table		= usb_si4713_device_table,
+	.id_table		= usb_si4713_usb_device_table,
 };
 
 static int __init si4713_init(void)
