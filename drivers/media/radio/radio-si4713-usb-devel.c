@@ -70,7 +70,6 @@ struct si4713_usb_device {
 	struct v4l2_subdev	*v4l2_subdev;
 	struct mutex 		lock;
 	struct i2c_adapter 	i2c_adapter;	/* I2C adapter */
-	struct mutex		i2c_mutex;	/* I2C lock */
 	u8 			*buffer;
 };
 
@@ -399,8 +398,6 @@ static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs
 	
 	if (num <= 0)
 		return 0;
-	
-	mutex_lock(&radio->i2c_mutex);
 
 	for (i = 0; i < num; i++) {
 		if (msgs[i].flags & I2C_M_RD)
@@ -411,7 +408,6 @@ static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs
 			break;
 	}
 	
-	mutex_unlock(&radio->i2c_mutex);
 	return retval ? retval : num; 
 }
 
@@ -468,7 +464,6 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	}
 	
 	mutex_init(&radio->lock);
-	mutex_init(&radio->i2c_mutex);
 	
 	radio->usbdev = interface_to_usbdev(intf);
 	radio->intf = intf;
