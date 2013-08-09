@@ -151,7 +151,6 @@ static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
 	struct si4713_usb_device *radio = to_si4713_dev(v4l2_dev);
 	struct i2c_adapter *adapter = &radio->i2c_adapter;
 
-	/* free rest memory */
 	i2c_del_adapter(adapter);
 	v4l2_device_unregister(&radio->v4l2_dev);
 	kfree(radio->buffer);
@@ -160,7 +159,6 @@ static void usb_si4713_video_device_release(struct v4l2_device *v4l2_dev)
 
 static int si4713_send_startup_command(struct si4713_usb_device *radio)
 {
-	/* TODO : Implement proper timeout */
 	int retval;
 	int timeout = 0;
 	//u8 *buffer = radio->buffer;
@@ -176,9 +174,9 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 // 		/* receive the response */
 // 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 // 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-// 		timeout += 1;
+// 		timeout ++;
 // 		msleep(SLEEP);
-// 		} while((radio->buffer[1] || radio->buffer[2]) && timeout < TIMEOUT);
+// 		} while ((radio->buffer[1] || radio->buffer[2]) && timeout < TIMEOUT);
 // 		return retval;
 // 	}
 // 	
@@ -188,9 +186,9 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 // 		/* receive the response */
 // 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 // 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-// 		timeout += 1;
+// 		timeout ++;
 // 		msleep(SLEEP);
-// 		} while((radio->buffer[1] && radio->buffer[2] != 0x80 && radio->buffer[9] != 0x08) && timeout < TIMEOUT);
+// 		} while ((radio->buffer[1] && radio->buffer[2] != 0x80 && radio->buffer[9] != 0x08) && timeout < TIMEOUT);
 // 		return retval;
 // 	}
 // 		
@@ -200,9 +198,9 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 // 		/* receive the response */
 // 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 // 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-// 		timeout += 1;
+// 		timeout ++;
 // 		msleep(SLEEP);
-// 		} while((radio->buffer[1] && radio->buffer[2] != 0x80) && timeout < TIMEOUT);
+// 		} while ((radio->buffer[1] && radio->buffer[2] != 0x80) && timeout < TIMEOUT);
 // 		return retval;
 // 	}
 	
@@ -210,9 +208,9 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 		/* receive the response */
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-		timeout += 1;
+		timeout ++;
 		msleep(SLEEP);
-	} while(radio->buffer[1] && timeout < TIMEOUT);
+	} while (radio->buffer[1] && timeout < TIMEOUT);
 	
 	return retval;
 }
@@ -224,41 +222,44 @@ struct si4713_start_seq_table {
 
 struct si4713_start_seq_table start_seq[] = {
 	
-	{2, {0x3f, 0x03}},
-	{3, {0x3f, 0x32, 0x7f}},
-	{7, {0x3f, 0x06, 0x03, 0x03, 0x08, 0x01, 0x0f}},
-	{3, {0x3f, 0x14, 0x02}},
-	{3, {0x3f, 0x09, 0x90}},
-	{4, {0x3f, 0x08, 0x90, 0xfa}},
-	{3, {0x3f, 0x36, 0x01}},
-	{3, {0x3f, 0x05, 0x03}},
-	{8, {0x3f, 0x06, 0x00, 0x06, 0x0e, 0x01, 0x0f, 0x05}},
-	{2, {0x3f, 0x12}},
-	/* Commands that are sent after pressing the 'Initialize' button in the windows application */
-	{2, {0x3f, 0x03}},
-	{2, {0x3f, 0x01}},
-	{3, {0x3f, 0x09, 0x90}},
-	{4, {0x3f, 0x08, 0x90, 0xfa}},
-	{2, {0x3f, 0x34}},
-	{3, {0x3f, 0x35, 0x01}},
-	{3, {0x3f, 0x36, 0x01}},
-	{3, {0x3f, 0x30, 0x09}},
-	{5, {0x3f, 0x30, 0x06, 0x00, 0xe2}},
-	{4, {0x3f, 0x31, 0x01, 0x30}},
-	{4, {0x3f, 0x31, 0x04, 0x09}},
-	{3, {0x3f, 0x05, 0x02}},
-	{7, {0x3f, 0x06, 0x03, 0x03, 0x08, 0x01, 0x0f}},
+	{ 2, { 0x3f, 0x03 } },
+	{ 3, { 0x3f, 0x32, 0x7f } },
+	{ 7, { 0x3f, 0x06, 0x03, 0x03, 0x08, 0x01, 0x0f } },
+	{ 3, { 0x3f, 0x14, 0x02 } },
+	{ 3, { 0x3f, 0x09, 0x90 } },
+	{ 4, { 0x3f, 0x08, 0x90, 0xfa } },
+	{ 3, { 0x3f, 0x36, 0x01 } },
+	{ 3, { 0x3f, 0x05, 0x03 } },
+	{ 8, { 0x3f, 0x06, 0x00, 0x06, 0x0e, 0x01, 0x0f, 0x05 } },
+	{ 2, { 0x3f, 0x12 } },
+	/* Commands that are sent after pressing the 'Initialize' 
+	 	button in the windows application */
+	{ 2, { 0x3f, 0x03 } },
+	{ 2, { 0x3f, 0x01 } },
+	{ 3, { 0x3f, 0x09, 0x90 } },
+	{ 4, { 0x3f, 0x08, 0x90, 0xfa } },
+	{ 2, { 0x3f, 0x34 } },
+	{ 3, { 0x3f, 0x35, 0x01 } },
+	{ 3, { 0x3f, 0x36, 0x01 } },
+	{ 3, { 0x3f, 0x30, 0x09 } },
+	{ 5, { 0x3f, 0x30, 0x06, 0x00, 0xe2 } },
+	{ 4, { 0x3f, 0x31, 0x01, 0x30 } },
+	{ 4, { 0x3f, 0x31, 0x04, 0x09 } },
+	{ 3, { 0x3f, 0x05, 0x02 } },
+	{ 7, { 0x3f, 0x06, 0x03, 0x03, 0x08, 0x01, 0x0f } },
 };
 
 static int si4713_start_seq(struct si4713_usb_device *radio)
 {
 	int i;
 	int retval = 0;
-	for(i = 0; i < ARRAY_SIZE(start_seq); i++){
+	
+	for (i = 0; i < ARRAY_SIZE(start_seq); i++) {
 		int len = start_seq[i].len;
 		u8 *payload = start_seq[i].payload;
 		memcpy(radio->buffer, payload, len);
-		memset(radio->buffer + len, 0, 64-len);
+		
+		memset(radio->buffer + len, 0, 64 - len);
 		retval = si4713_send_startup_command(radio);
 	}
 	return retval;
@@ -282,19 +283,19 @@ struct si4713_command_table {
  */
 struct si4713_command_table command_table[] = {
 	
-	{5, {0x3f, 0x06, 0x00, 0x03, 0x01}}, /* POWER_UP */ 
-	{5, {0x3f, 0x06, 0x03, 0x01, 0x10}}, /* GET_REV */
-	{5, {0x3f, 0x06, 0x00, 0x01, 0x01}}, /* POWER_DOWN */ 
-	{5, {0x3f, 0x06, 0x00, 0x06, 0x01}}, /* SET_PROPERTY */
-	{5, {0x3f, 0x06, 0x00, 0x04, 0x04}}, /* GET_PROPERTY */
-	{5, {0x3f, 0x06, 0x03, 0x04, 0x01}}, /* TX_TUNE_FREQ */
-	{5, {0x3f, 0x06, 0x03, 0x05, 0x01}}, /* TX_TUNE_POWER */
-	{5, {0x3f, 0x06, 0x03, 0x05, 0x01}}, /* TX_TUNE_MEASURE */ /* TODO : Check byte 3 */
-	{5, {0x3f, 0x06, 0x00, 0x02, 0x08}}, /* TX_TUNE_STATUS */
-	{5, {0x3f, 0x06, 0x03, 0x02, 0x05}}, /* TX_ASQ_STATUS */
-	{5, {0x3f, 0x06, 0x03, 0x01, 0x01}}, /* GET_INT_STATUS */
-	{5, {0x3f, 0x06, 0x03, 0x06, 0x08}}, /* TX_RDS_BUFF */ /* TODO : Check byte 3 */
-	{5, {0x3f, 0x06, 0x00, 0x06, 0x01}}, /* TX_RDS_PS */
+	{ 5, { 0x3f, 0x06, 0x00, 0x03, 0x01 } }, /* POWER_UP */ 
+	{ 5, { 0x3f, 0x06, 0x03, 0x01, 0x10 } }, /* GET_REV */
+	{ 5, { 0x3f, 0x06, 0x00, 0x01, 0x01 } }, /* POWER_DOWN */ 
+	{ 5, { 0x3f, 0x06, 0x00, 0x06, 0x01 } }, /* SET_PROPERTY */
+	{ 5, { 0x3f, 0x06, 0x00, 0x04, 0x04 } }, /* GET_PROPERTY */
+	{ 5, { 0x3f, 0x06, 0x03, 0x04, 0x01 } }, /* TX_TUNE_FREQ */
+	{ 5, { 0x3f, 0x06, 0x03, 0x05, 0x01 } }, /* TX_TUNE_POWER */
+	{ 5, { 0x3f, 0x06, 0x03, 0x05, 0x01 } }, /* TX_TUNE_MEASURE */ /* TODO : Check byte 3 */
+	{ 5, { 0x3f, 0x06, 0x00, 0x02, 0x08 } }, /* TX_TUNE_STATUS */
+	{ 5, { 0x3f, 0x06, 0x03, 0x02, 0x05 } }, /* TX_ASQ_STATUS */
+	{ 5, { 0x3f, 0x06, 0x03, 0x01, 0x01 } }, /* GET_INT_STATUS */
+	{ 5, { 0x3f, 0x06, 0x03, 0x06, 0x08 } }, /* TX_RDS_BUFF */ /* TODO : Check byte 3 */
+	{ 5, { 0x3f, 0x06, 0x00, 0x06, 0x01 } }, /* TX_RDS_PS */
 	
 };
 
@@ -302,9 +303,10 @@ static int send_command(struct si4713_usb_device *radio, int pref, u8 *payload, 
 {
 	int retval;
 	int timeout = 0;
+	
 	memcpy(radio->buffer, payload, pref);
 	memcpy(radio->buffer + pref, data, len);
-	memset(radio->buffer + pref + len, 0, 64-pref-len);
+	memset(radio->buffer + pref + len, 0, 64 - pref - len);
 	/* send the command */
 	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
 					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
@@ -314,9 +316,9 @@ static int send_command(struct si4713_usb_device *radio, int pref, u8 *payload, 
 	do {
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
-		timeout += 1;
+		timeout ++;
 		msleep(SLEEP);
-	} while(radio->buffer[2] != 0x80 && radio->buffer[2] != 0x81 && timeout < TIMEOUT);
+	} while (radio->buffer[2] != 0x80 && radio->buffer[2] != 0x81 && timeout < TIMEOUT);
 	
 	return retval;
 }
@@ -425,21 +427,21 @@ static u32 si4713_functionality(struct i2c_adapter *adapter)
 };
  
 static struct i2c_adapter si4713_i2c_adapter_template = {
-	.name   = "Si4713-I2C",	// This value shows up in the sysfs filename associated with this I2C adapter
+	/* This value shows up in the sysfs filename associated 
+	 	with this I2C adapter */
+	.name   = "si4713-i2c",
 	.owner  = THIS_MODULE,
 	.algo   = &si4713_algo,
 };
 
 int si4713_register_i2c_adapter(struct si4713_usb_device *radio)
 {
-	int retval = -ENOMEM;
-
 	radio->i2c_adapter = si4713_i2c_adapter_template;
-	radio->i2c_adapter.dev.parent = &radio->usbdev->dev; // set up sysfs linkage to our parent device.
+	/* set up sysfs linkage to our parent device */
+	radio->i2c_adapter.dev.parent = &radio->usbdev->dev;
 	i2c_set_adapdata(&radio->i2c_adapter, radio);
 
-	retval = i2c_add_adapter(&radio->i2c_adapter);
-	return retval;
+	return i2c_add_adapter(&radio->i2c_adapter);
 }
 
 /* check if the device is present and register with v4l and usb if it is */
@@ -451,12 +453,8 @@ static int usb_si4713_probe(struct usb_interface *intf,
 	struct v4l2_subdev *sd;
 	int retval = -ENOMEM;
 
-	struct usb_host_interface *iface_desc;
-	iface_desc = intf->cur_altsetting;
-	dev_info(&intf->dev, "Si4713 development board i/f %d discovered: (%04X:%04X)\n",
-			iface_desc->desc.bInterfaceNumber, id->idVendor, id->idProduct);
-	dev_info(&intf->dev, "Si4713 : ID->bInterfaceClass: %02X\n",
-			iface_desc->desc.bInterfaceClass);
+	dev_info(&intf->dev, "Si4713 development board discovered: (%04X:%04X)\n",
+			id->idVendor, id->idProduct);
 	
 	/* Initialize local device structure */
 	radio = kzalloc(sizeof(struct si4713_usb_device), GFP_KERNEL);
@@ -540,8 +538,8 @@ err_v4l2:
 static void usb_si4713_disconnect(struct usb_interface *intf)
 {	
 	struct si4713_usb_device *radio = to_si4713_dev(usb_get_intfdata(intf));
-	printk(KERN_INFO "Si4713 development board i/f %d now disconnected\n",
-		intf->cur_altsetting->desc.bInterfaceNumber);
+	
+	dev_info(&intf->dev, "Si4713 development board now disconnected\n");
 	mutex_lock(&radio->lock);
 	usb_set_intfdata(intf, NULL);
 	video_unregister_device(&radio->vdev);
@@ -558,21 +556,4 @@ static struct usb_driver usb_si4713_driver = {
 	.id_table		= usb_si4713_usb_device_table,
 };
 
-static int __init si4713_init(void)
-{
-	int retval = usb_register(&usb_si4713_driver);
-
-	if (retval)
-		pr_err(KBUILD_MODNAME
-			": usb_register failed. Error number %d\n", retval);
-
-	return retval;
-}
-
-static void __exit si4713_exit(void)
-{
-	usb_deregister(&usb_si4713_driver);
-}
-
-module_init(si4713_init);
-module_exit(si4713_exit);
+module_usb_driver(usb_si4713_driver);
