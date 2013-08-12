@@ -163,7 +163,8 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 //	u8 *buffer = radio->buffer;
 	/* send the command */
 	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
- 					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+ 					0x09, 0x21, 0x033f, 0, radio->buffer, 
+					BUFFER_LENGTH, USB_TIMEOUT);
  	if (retval < 0)
  		return retval;
 	
@@ -172,7 +173,8 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 // 		do {
 // 		/* receive the response */
 // 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
-// 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+// 						0x01, 0xa1, 0x033f, 0, radio->buffer, 
+//						BUFFER_LENGTH, USB_TIMEOUT);
 // 		timeout ++;
 // 		msleep(SLEEP);
 // 		} while ((radio->buffer[1] || radio->buffer[2]) && timeout < TIMEOUT);
@@ -184,10 +186,13 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 // 		do {
 // 		/* receive the response */
 // 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
-// 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+// 						0x01, 0xa1, 0x033f, 0, radio->buffer, 
+//						BUFFER_LENGTH, USB_TIMEOUT);
 // 		timeout ++;
 // 		msleep(SLEEP);
-// 		} while ((radio->buffer[1] && radio->buffer[2] != SI4713_CTS && radio->buffer[9] != 0x08) && timeout < TIMEOUT);
+// 		} while ((radio->buffer[1] && radio->buffer[2] != SI4713_CTS 
+//				&& radio->buffer[9] != 0x08) 
+//				&& timeout < TIMEOUT);
 // 		return retval;
 // 	}
 // 		
@@ -196,17 +201,20 @@ static int si4713_send_startup_command(struct si4713_usb_device *radio)
 // 		do {
 // 		/* receive the response */
 // 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
-// 						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+// 						0x01, 0xa1, 0x033f, 0, radio->buffer, 
+//						BUFFER_LENGTH, USB_TIMEOUT);
 // 		timeout ++;
 // 		msleep(SLEEP);
-// 		} while ((radio->buffer[1] && radio->buffer[2] != SI4713_CTS) && timeout < TIMEOUT);
+// 		} while ((radio->buffer[1] && radio->buffer[2] != SI4713_CTS) 
+//				&& timeout < TIMEOUT);
 // 		return retval;
 // 	}
 	
 	do {
 		/* receive the response */
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
-						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+						0x01, 0xa1, 0x033f, 0, radio->buffer, 
+						BUFFER_LENGTH, USB_TIMEOUT);
 		timeout ++;
 		msleep(SLEEP);
 	} while (radio->buffer[1] && timeout < TIMEOUT);
@@ -313,16 +321,19 @@ static int send_command(struct si4713_usb_device *radio, u8 *payload, char *data
 	memset(radio->buffer + 5 + len, 0, 59 - len);
 	/* send the command */
 	retval = usb_control_msg(radio->usbdev, usb_sndctrlpipe(radio->usbdev, 0),
-					0x09, 0x21, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+					0x09, 0x21, 0x033f, 0, radio->buffer, 
+					BUFFER_LENGTH, USB_TIMEOUT);
 	if (retval < 0)
 		return retval;
 	/* receive the response */
 	do {
 		retval = usb_control_msg(radio->usbdev, usb_rcvctrlpipe(radio->usbdev, 0),
-						0x01, 0xa1, 0x033f, 0, radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+						0x01, 0xa1, 0x033f, 0, radio->buffer, 
+						BUFFER_LENGTH, USB_TIMEOUT);
 		timeout ++;
 		msleep(SLEEP);
-	} while (radio->buffer[2] != SI4713_CTS && radio->buffer[2] != 0x81 && timeout < TIMEOUT);
+	} while (radio->buffer[2] != SI4713_CTS && radio->buffer[2] != 0x81 
+			&& timeout < TIMEOUT);
 	
 	return retval;
 }
@@ -334,8 +345,8 @@ static int si4713_i2c_read(struct si4713_usb_device *radio, char *data, int len)
 	/* receive the response */
 	retval = usb_control_msg(radio->usbdev, 
 					usb_rcvctrlpipe(radio->usbdev, 0),
-					0x01, 0xa1, 0x033f, 0, 
-					radio->buffer, BUFFER_LENGTH, USB_TIMEOUT);
+					0x01, 0xa1, 0x033f, 0, radio->buffer,
+					BUFFER_LENGTH, USB_TIMEOUT);
 	if (retval == BUFFER_LENGTH) {
 		memcpy(data, radio->buffer + 2, len);
 		return 0;
@@ -380,8 +391,7 @@ static int si4713_transfer(struct i2c_adapter *i2c_adapter, struct i2c_msg *msgs
 	
 	return retval ? retval : num; 
 }
-
-/* see the description of the flags here : <linux/i2c.h> */ 
+ 
 static u32 si4713_functionality(struct i2c_adapter *adapter)
 {
 	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
@@ -391,10 +401,10 @@ static struct i2c_algorithm si4713_algo = {
 	.master_xfer   = si4713_transfer,	
 	.functionality = si4713_functionality,
 };
- 
-static struct i2c_adapter si4713_i2c_adapter_template = {
-	/* This value shows up in the sysfs filename associated 
+
+/* This name value shows up in the sysfs filename associated 
 	 	with this I2C adapter */
+static struct i2c_adapter si4713_i2c_adapter_template = {
 	.name   = "si4713-i2c",
 	.owner  = THIS_MODULE,
 	.algo   = &si4713_algo,
